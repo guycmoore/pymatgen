@@ -189,6 +189,14 @@ class Poscar(MSONable):
         return [a[0] for a in itertools.groupby(syms)]
 
     @property
+    def sites(self):
+        """
+        FILL ME
+        """
+        sites_array = [site for site in self.structure]
+        return sites_array
+
+    @property
     def natoms(self):
         """
         Sequence of number of sites of each type associated with the Poscar.
