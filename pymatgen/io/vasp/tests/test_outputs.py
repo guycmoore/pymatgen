@@ -25,6 +25,7 @@ from pymatgen import Spin, Orbital, Lattice, Structure
 from pymatgen.entries.compatibility import MaterialsProjectCompatibility
 from pymatgen.electronic_structure.core import Magmom
 from pymatgen.util.testing import PymatgenTest
+from pymatgen.core import Element
 
 
 class VasprunTest(PymatgenTest):
@@ -79,8 +80,21 @@ class VasprunTest(PymatgenTest):
                                        UserWarning))
 
     def test_runtype(self):
+
+        v = Vasprun(self.TEST_FILES_DIR / "vasprun.GW0.xml")
+        self.assertIn(v.run_type, "HF")
+
         v = Vasprun(self.TEST_FILES_DIR / "vasprun.xml.hse06")
         self.assertIn(v.run_type, "HSE06")
+
+        v = Vasprun(self.TEST_FILES_DIR / "vasprun.xml.scan_rvv10")
+        self.assertIn(v.run_type, "SCAN+rVV10")
+
+        v = Vasprun(self.TEST_FILES_DIR / "vasprun.xml.dfpt.ionic")
+        self.assertIn(v.run_type, "GGA")
+
+        v = Vasprun(self.TEST_FILES_DIR / "vasprun.xml.dfpt")
+        self.assertIn(v.run_type, "GGA+U")
 
     def test_vdw(self):
         v = Vasprun(self.TEST_FILES_DIR / "vasprun.xml.vdw")
@@ -985,6 +999,20 @@ class OutcarTest(PymatgenTest):
         self.assertEqual(len(matrices[0][Spin.up][0]), 7)
         self.assertTrue("onsite_density_matrices" in outcar.as_dict())
 
+    def test_nplwvs(self):
+        outcar = Outcar(self.TEST_FILES_DIR / "OUTCAR")
+        self.assertEqual(outcar.data["nplwv"], [[34560]])
+        self.assertEqual(outcar.data["nplwvs_at_kpoints"],
+                         [1719, 1714, 1722, 1728, 1722, 1726, 1722, 1720, 1717, 1724, 1715, 1724, 1726, 1724, 1728,
+                          1715, 1722, 1715, 1726, 1730, 1730, 1715, 1716, 1729, 1727, 1723, 1721, 1712, 1723, 1719,
+                          1717, 1717, 1724, 1719, 1719, 1727, 1726, 1730, 1719, 1720, 1718, 1717, 1722, 1719, 1709,
+                          1714, 1724, 1726, 1718, 1713, 1720, 1713, 1711, 1713, 1715, 1717, 1728, 1726, 1712, 1722,
+                          1714, 1713, 1717, 1714, 1714, 1717, 1712, 1710, 1721, 1722, 1724, 1720, 1726, 1719, 1722,
+                          1714])
+        outcar = Outcar(self.TEST_FILES_DIR / "OUTCAR.CL")
+        self.assertEqual(outcar.data["nplwv"], [[None]])
+        self.assertEqual(outcar.data["nplwvs_at_kpoints"], [85687])
+
 
 class BSVasprunTest(PymatgenTest):
     _multiprocess_shared_ = True
@@ -1100,29 +1128,30 @@ class ChgcarTest(PymatgenTest):
         self.assertTrue(chg_from_file.is_soc)
         os.remove("CHGCAR_pmg_soc")
 
-    # def test_hdf5(self):
-    #     chgcar = Chgcar.from_file(self.TEST_FILES_DIR / "CHGCAR.NiO_SOC.gz")
-    #     chgcar.to_hdf5("chgcar_test.hdf5")
-    #     import h5py
-    #     with h5py.File("chgcar_test.hdf5", "r") as f:
-    #         self.assertArrayAlmostEqual(np.array(f["vdata"]["total"]),
-    #                                     chgcar.data["total"])
-    #         self.assertArrayAlmostEqual(np.array(f["vdata"]["diff"]),
-    #                                     chgcar.data["diff"])
-    #         self.assertArrayAlmostEqual(np.array(f["lattice"]),
-    #                                     chgcar.structure.lattice.matrix)
-    #         self.assertArrayAlmostEqual(np.array(f["fcoords"]),
-    #                                     chgcar.structure.frac_coords)
-    #         for z in f["Z"]:
-    #             self.assertIn(z, [Element.Ni.Z, Element.O.Z])
-    #
-    #         for sp in f["species"]:
-    #             self.assertIn(sp, ["Ni", "O"])
-    #
-    #     chgcar2 = Chgcar.from_hdf5("chgcar_test.hdf5")
-    #     self.assertArrayAlmostEqual(chgcar2.data["total"],
-    #                                 chgcar.data["total"])
-    #     os.remove("chgcar_test.hdf5")
+    def test_hdf5(self):
+        print(self.TEST_FILES_DIR)
+        chgcar = Chgcar.from_file(self.TEST_FILES_DIR / "CHGCAR.NiO_SOC.gz")
+        chgcar.to_hdf5("chgcar_test.hdf5")
+        import h5py
+        with h5py.File("chgcar_test.hdf5", "r") as f:
+            self.assertArrayAlmostEqual(np.array(f["vdata"]["total"]),
+                                        chgcar.data["total"])
+            self.assertArrayAlmostEqual(np.array(f["vdata"]["diff"]),
+                                        chgcar.data["diff"])
+            self.assertArrayAlmostEqual(np.array(f["lattice"]),
+                                        chgcar.structure.lattice.matrix)
+            self.assertArrayAlmostEqual(np.array(f["fcoords"]),
+                                        chgcar.structure.frac_coords)
+            for z in f["Z"]:
+                self.assertIn(z, [Element.Ni.Z, Element.O.Z])
+
+            for sp in f["species"]:
+                self.assertIn(sp, ["Ni", "O"])
+
+        chgcar2 = Chgcar.from_hdf5("chgcar_test.hdf5")
+        self.assertArrayAlmostEqual(chgcar2.data["total"],
+                                    chgcar.data["total"])
+        os.remove("chgcar_test.hdf5")
 
     def test_spin_data(self):
         d = self.chgcar_spin.spin_data

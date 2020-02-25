@@ -38,7 +38,7 @@ class MagneticSpaceGroup(SymmetryGroup):
     """
     Representation of a magnetic space group.
     """
-    def __init__(self, id, jf_in="a,b,c;0,0,0"):
+    def __init__(self, id, setting_transformation="a,b,c;0,0,0"):
         """
         Initializes a MagneticSpaceGroup from its Belov, Neronova and
         Smirnova (BNS) number supplied as a list or its label supplied
@@ -124,12 +124,12 @@ class MagneticSpaceGroup(SymmetryGroup):
 
         # Jones Faithful transformation
         self.jf = JonesFaithfulTransformation.from_transformation_string("a,b,c;0,0,0")
-        if isinstance(jf_in, str):
-            if jf_in != "a,b,c;0,0,0":
-                self.jf = JonesFaithfulTransformation.from_transformation_string(jf_in)
-        elif isinstance(jf_in, JonesFaithfulTransformation):
-            if jf_in != self.jf:
-                self.jf = jf_in
+        if isinstance(setting_transformation, str):
+            if setting_transformation != "a,b,c;0,0,0":
+                self.jf = JonesFaithfulTransformation.from_transformation_string(setting_transformation)
+        elif isinstance(setting_transformation, JonesFaithfulTransformation):
+            if setting_transformation != self.jf:
+                self.jf = setting_transformation
 
         self._data['magtype'] = raw_data[0]  # int from 1 to 4
         self._data['bns_number'] = [raw_data[1], raw_data[2]]
@@ -345,9 +345,9 @@ class MagneticSpaceGroup(SymmetryGroup):
         ops = ops + centered_ops
 
         # apply jones faithful transformation
-        ops_jf = [self.jf.transform_symmop(op) for op in ops]
+        ops = [self.jf.transform_symmop(op) for op in ops]
 
-        return ops_jf
+        return ops
 
     def get_orbit(self, p, m, tol=1e-5):
         """
@@ -426,8 +426,15 @@ class MagneticSpaceGroup(SymmetryGroup):
         # all stored data including OG setting
 
         desc = {}  # dictionary to hold description strings
+        description = ""
 
         # parse data into strings
+
+        # indicate if non-standard setting specified
+        if self.jf != JonesFaithfulTransformation.from_transformation_string("a,b,c;0,0,0"):
+            description += "Non-standard setting: .....\n"
+            description += self.jf.__repr__()
+            description += "\n\nStandard setting information: \n"
 
         desc['magtype'] = self._data['magtype']
         desc['bns_number'] = ".".join(map(str, self._data["bns_number"]))
@@ -457,11 +464,11 @@ class MagneticSpaceGroup(SymmetryGroup):
                                               subsequent_indent=" " * len(bns_operators_prefix),
                                               break_long_words=False, break_on_hyphens=False)
 
-        description = ("BNS: {d[bns_number]} {d[bns_label]}{d[og_id]}\n"
-                       "{d[og_bns_transformation]}"
-                       "{d[bns_operators]}\n"
-                       "{bns_wyckoff_prefix}{d[bns_lattice]}\n"
-                       "{d[bns_wyckoff]}").format(d=desc, bns_wyckoff_prefix=bns_wyckoff_prefix)
+        description += ("BNS: {d[bns_number]} {d[bns_label]}{d[og_id]}\n"
+                        "{d[og_bns_transformation]}"
+                        "{d[bns_operators]}\n"
+                        "{bns_wyckoff_prefix}{d[bns_lattice]}\n"
+                        "{d[bns_wyckoff]}").format(d=desc, bns_wyckoff_prefix=bns_wyckoff_prefix)
 
         if desc['magtype'] == 4 and include_og:
 

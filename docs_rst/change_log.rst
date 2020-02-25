@@ -1,6 +1,33 @@
 Change log
 ==========
 
+v2020.1.28
+----------
+* Plugin architecture for pymatgen.
+* Improvements to pymatgen.analysis.xas.spectrum.XAS class. (@yiming)
+* Fixes for ISYM uniform bug and auto-NEDSO (@fraricci) 
+* Improvements to ReactionDiagram.
+* Chemenv improvements (@davidwaroquiers)
+* Misc bug fixes.
+
+v2020.1.10
+----------
+* New connectivity analysis in Chemenv (@davidwaroquiers)
+* Improvements to DOSPlotter (@uthpalah)
+* Improvements to writing VASP input sets (@rkingsbury)
+* Bug fix for PhaseDiagram (@montoyjh)
+
+v2019.12.22
+-----------
+* Improvements to reaction calculator (@mattmcdermott)
+* VASP input set for SCAN from Materials Project, MPScanSet (@rkingsbury)
+* Bug fixes and documentation improvements (@LindaHung-TRI, @rkingsbury, @kwaters4, @rwoodsrobinson, @JaGeo, @nishiyamat, @smheidrich)
+
+v2019.12.3
+----------
+* Respect KSPACING in INCAR.
+* Bug fixes.
+
 v2019.11.11
 -----------
 * Extend grosspop class (@Jageo)

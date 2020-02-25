@@ -2,19 +2,20 @@
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
-import unittest
-import os
 import json
-import warnings
-import numpy as np
+import os
 import tempfile
+import unittest
+import warnings
+
+import numpy as np
 from pymatgen import Structure
+from pymatgen.electronic_structure.core import Spin, Orbital
 from pymatgen.io.lobster import Cohpcar, Icohplist, Doscar, Charge, Lobsterout, Fatband, Lobsterin, Bandoverlaps, \
     Grosspop
 from pymatgen.io.vasp import Vasprun
-from pymatgen.electronic_structure.core import Spin, Orbital
-from pymatgen.util.testing import PymatgenTest
 from pymatgen.io.vasp.inputs import Incar, Kpoints, Potcar
+from pymatgen.util.testing import PymatgenTest
 
 __author__ = "Janine George, Marco Esters"
 __copyright__ = "Copyright 2017, The Materials Project"
@@ -244,6 +245,8 @@ class IcohplistTest(unittest.TestCase):
         self.icoop_bise = Icohplist(filename=os.path.join(test_dir, "ICOOPLIST.lobster.BiSe"),
                                     are_coops=True)
         self.icohp_fe = Icohplist(filename=os.path.join(test_dir, "ICOHPLIST.lobster"))
+        # allow gzipped files
+        self.icohp_gzipped = Icohplist(filename=os.path.join(test_dir, "ICOHPLIST.lobster.gz"))
         self.icoop_fe = Icohplist(filename=os.path.join(test_dir, "ICOHPLIST.lobster"), are_coops=True)
 
     def test_attributes(self):
@@ -548,6 +551,7 @@ class LobsteroutTest(PymatgenTest):
         self.lobsterout_twospins = Lobsterout(filename=os.path.join(test_dir, "lobsterout.twospins"))
         self.lobsterout_GaAs = Lobsterout(filename=os.path.join(test_dir, "lobsterout.GaAs"))
         self.lobsterout_from_projection = Lobsterout(filename=os.path.join(test_dir, "lobsterout_from_projection"))
+        self.lobsterout_onethread = Lobsterout(filename=os.path.join(test_dir, "lobsterout.onethread"))
 
     def tearDown(self):
         warnings.simplefilter("default")
@@ -802,6 +806,8 @@ class LobsteroutTest(PymatgenTest):
                                                            'usertime': {'h': '0', 'min': '0', 's': '12', 'ms': '370'},
                                                            'sys_time': {'h': '0', 'min': '0', 's': '0', 'ms': '180'}})
         self.assertAlmostEqual(self.lobsterout_GaAs.totalspilling[0], [0.0859][0])
+
+        self.assertEqual(self.lobsterout_onethread.number_of_threads, 1)
 
     def test_get_doc(self):
         comparedict = {'restart_from_projection': False, 'lobster_version': 'v3.1.0', 'threads': 8,
