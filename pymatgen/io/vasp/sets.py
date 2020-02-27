@@ -1365,7 +1365,7 @@ class LinearResponseUSet(MPStaticSet):
         """
         vasprun, outcar = get_vasprun_outcar(prev_calc_dir)
 
-        self.prev_incar = vasprun.incar
+        # self.prev_incar = vasprun.incar
         self.prev_kpoints = vasprun.kpoints
 
         if self.standardize:
