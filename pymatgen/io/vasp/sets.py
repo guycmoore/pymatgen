@@ -1104,9 +1104,9 @@ class MPStaticSet(MPRelaxSet):
         return input_set.override_from_prev_calc(prev_calc_dir=prev_calc_dir)
 
 
-class Poscar_U(Poscar):
+class PoscarPerturb(Poscar):
     """
-    FILL ME
+    FILL
     """
 
     def __init__(
@@ -1122,7 +1122,7 @@ class Poscar_U(Poscar):
             sort_structure: bool = False,
     ):
         """
-        FILL ME
+        FILL
         """
         # super().__init__(structure=Structure)
 
@@ -1191,15 +1191,15 @@ class Poscar_U(Poscar):
         return n_atoms
 
 
-class LinearResponseUSet(MPRelaxSet):
+class LinearResponseUSet(MPStaticSet):
     """
-    FILL ME
+    FILL
     """
     def __init__(self, structure, prev_incar=None, prev_kpoints=None,
                  lepsilon=False, lcalcpol=False, reciprocal_density=100,
                  small_gap_multiply=None, **kwargs):
         """
-        FILL ME
+        FILL
         """
         super().__init__(structure, **kwargs)
         if isinstance(prev_incar, str):
@@ -1218,7 +1218,7 @@ class LinearResponseUSet(MPRelaxSet):
     @property
     def incar(self):
         """
-        FILL ME
+        FILL
         """
         parent_incar = super().incar
         settings = dict(self._config_dict["INCAR"])
@@ -1327,15 +1327,15 @@ class LinearResponseUSet(MPRelaxSet):
     @property
     def poscar(self):
         """
-        FILL ME
+        FILL
         """
-        poscar = Poscar_U(structure=super().structure)
+        poscar = PoscarPerturb(structure=super().structure)
         return poscar
 
     @property
     def kpoints(self):
         """
-        FILL ME
+        FILL
         """
         self._config_dict["KPOINTS"]["reciprocal_density"] = self.reciprocal_density
         kpoints = super().kpoints
