@@ -1202,13 +1202,11 @@ class LinearResponseUSet(MPStaticSet):
         FILL
         """
         super().__init__(structure, **kwargs)
-        if isinstance(prev_incar, str):
-            prev_incar = Incar.from_file(prev_incar)
+
         if isinstance(prev_kpoints, str):
             prev_kpoints = Kpoints.from_file(prev_kpoints)
-
-        self.prev_incar = prev_incar
         self.prev_kpoints = prev_kpoints
+
         self.reciprocal_density = reciprocal_density
         self.kwargs = kwargs
         self.lepsilon = lepsilon
@@ -1229,6 +1227,7 @@ class LinearResponseUSet(MPStaticSet):
         settings.pop("LDAUL")
 
         structure = self.structure
+
         # comp = structure.composition
         # elements = sorted([el for el in comp.elements if comp[el] > 0],
         #                   key=lambda e: e.X)
@@ -1236,30 +1235,29 @@ class LinearResponseUSet(MPStaticSet):
         # poscar = Poscar(structure)
         # hubbard_u = settings.get("LDAU", False)
 
-        incar = Incar(self.prev_incar) if self.prev_incar is not None else \
-            Incar(parent_incar)
+        incar = Incar(parent_incar)
 
-        incar.update(
-            {"IBRION": -1, "ISMEAR": -5, "LAECHG": True, "LCHARG": True,
-             "LORBIT": 11, "LVHAR": True, "LWAVE": False, "NSW": 0,
-             "ICHARG": 0, "ALGO": "Normal"})
+        # incar.update(
+        #     {"IBRION": -1, "ISMEAR": -5, "LAECHG": True, "LCHARG": True,
+        #      "LORBIT": 11, "LVHAR": True, "LWAVE": False, "NSW": 0,
+        #      "ICHARG": 0, "ALGO": "Normal"})
 
-        if self.lepsilon:
-            incar["IBRION"] = 8
-            incar["LEPSILON"] = True
+        # if self.lepsilon:
+        #     incar["IBRION"] = 8
+        #     incar["LEPSILON"] = True
 
-            # LPEAD=T: numerical evaluation of overlap integral prevents
-            # LRF_COMMUTATOR errors and can lead to better expt. agreement
-            # but produces slightly different results
-            incar["LPEAD"] = True
+        #     # LPEAD=T: numerical evaluation of overlap integral prevents
+        #     # LRF_COMMUTATOR errors and can lead to better expt. agreement
+        #     # but produces slightly different results
+        #     incar["LPEAD"] = True
 
-            # Note that DFPT calculations MUST unset NSW. NSW = 0 will fail
-            # to output ionic.
-            incar.pop("NSW", None)
-            incar.pop("NPAR", None)
+        #     # Note that DFPT calculations MUST unset NSW. NSW = 0 will fail
+        #     # to output ionic.
+        #     incar.pop("NSW", None)
+        #     incar.pop("NPAR", None)
 
-        if self.lcalcpol:
-            incar["LCALCPOL"] = True
+        # if self.lcalcpol:
+        #     incar["LCALCPOL"] = True
 
         for k, v in settings.items():
             if k == "MAGMOM":
@@ -1399,7 +1397,8 @@ class LinearResponseUSet(MPStaticSet):
                 the prev_calc_dir.
         """
         input_set = cls(_dummy_structure, **kwargs)
-        return input_set.override_from_prev_calc(prev_calc_dir=prev_calc_dir)
+        return input_set
+        # return input_set.override_from_prev_calc(prev_calc_dir=prev_calc_dir)
 
 
 class MPHSEBSSet(MPHSERelaxSet):
