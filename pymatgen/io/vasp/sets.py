@@ -1221,26 +1221,25 @@ class LinearResponseUSet(MPStaticSet):
         parent_incar = super().incar
         settings = dict(self._config_dict["INCAR"])
 
-        # Remove?
-        settings.pop("LDAUU")
-        settings.pop("LDAUJ")
-        settings.pop("LDAUL")
-
         structure = self.structure
 
-        # comp = structure.composition
-        # elements = sorted([el for el in comp.elements if comp[el] > 0],
-        #                   key=lambda e: e.X)
-        # most_electroneg = elements[-1].symbol
-        # poscar = Poscar(structure)
         # hubbard_u = settings.get("LDAU", False)
 
         incar = Incar(parent_incar)
 
-        # incar.update(
-        #     {"IBRION": -1, "ISMEAR": -5, "LAECHG": True, "LCHARG": True,
-        #      "LORBIT": 11, "LVHAR": True, "LWAVE": False, "NSW": 0,
-        #      "ICHARG": 0, "ALGO": "Normal"})
+        settings.pop("LDAUU", None)
+        settings.pop("LDAUJ", None)
+        settings.pop("LDAUL", None)
+
+        # Note that DFPT calculations MUST unset NSW. NSW = 0 will fail
+        # to output ionic.
+
+        settings.pop("NSW", None)
+        incar.pop("NSW", None)
+
+        incar.update(
+            {"IBRION": -1, "LAECHG": True, "LCHARG": True,
+             "LORBIT": 11, "LVHAR": True, "LWAVE": False})
 
         # if self.lepsilon:
         #     incar["IBRION"] = 8
@@ -1250,11 +1249,6 @@ class LinearResponseUSet(MPStaticSet):
         #     # LRF_COMMUTATOR errors and can lead to better expt. agreement
         #     # but produces slightly different results
         #     incar["LPEAD"] = True
-
-        #     # Note that DFPT calculations MUST unset NSW. NSW = 0 will fail
-        #     # to output ionic.
-        #     incar.pop("NSW", None)
-        #     incar.pop("NPAR", None)
 
         # if self.lcalcpol:
         #     incar["LCALCPOL"] = True
@@ -1289,16 +1283,10 @@ class LinearResponseUSet(MPStaticSet):
             else:
                 incar.pop(k, None)
 
-        # # This is the method that should be changed - we don't want LDAU to update?
-        # if incar.get('LDAU'):
-        #     u = incar.get('LDAUU', [])
-        #     j = incar.get('LDAUJ', [])
-        #     if sum([u[x] - j[x] for x, y in enumerate(u)]) > 0:
-        #         for tag in ('LDAUU', 'LDAUL', 'LDAUJ'):
-        #             incar.update({tag: parent_incar[tag]})
-        #     # ensure to have LMAXMIX for GGA+U static run
-        #     if "LMAXMIX" not in incar:
-        #         incar.update({"LMAXMIX": parent_incar["LMAXMIX"]})
+        if incar.get('LDAU'):
+            # ensure to have LMAXMIX for GGA+U static run
+            if "LMAXMIX" not in incar:
+                incar.update({"LMAXMIX": parent_incar["LMAXMIX"]})
 
         # Compare ediff between previous and staticinputset values,
         # choose the tighter ediff
@@ -1306,11 +1294,12 @@ class LinearResponseUSet(MPStaticSet):
         incar["EDIFF"] = min(incar.get("EDIFF", 1), parent_incar["EDIFF"])
         if self.kwargs.get("user_incar_settings")["LDAUU"]:
 
-            incar["LDAUL"] = self.kwargs.get("user_incar_settings")["LDAUL"]
-            incar["LDAUU"] = self.kwargs.get("user_incar_settings")["LDAUU"]
-            incar["LDAUJ"] = self.kwargs.get("user_incar_settings")["LDAUJ"]
+            # Need to add another parameter for perturbed atom
 
-            # slight hack: need to add another parameter for perturbed atom
+            incar.update({"LDAUL": self.kwargs.get("user_incar_settings")["LDAUL"]})
+            incar.update({"LDAUU": self.kwargs.get("user_incar_settings")["LDAUU"]})
+            incar.update({"LDAUJ": self.kwargs.get("user_incar_settings")["LDAUJ"]})
+
             incar["LDAUL"] = [incar["LDAUL"][key] for key in incar["LDAUL"].keys()]
             incar["LDAUU"] = [incar["LDAUU"][key] for key in incar["LDAUU"].keys()]
             incar["LDAUJ"] = [incar["LDAUJ"][key] for key in incar["LDAUJ"].keys()]
