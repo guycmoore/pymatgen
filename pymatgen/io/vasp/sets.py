@@ -1104,9 +1104,9 @@ class MPStaticSet(MPRelaxSet):
         return input_set.override_from_prev_calc(prev_calc_dir=prev_calc_dir)
 
 
-class Poscar_U(Poscar):
+class PoscarPerturb(Poscar):
     """
-    FILL ME
+    FILL
     """
 
     def __init__(
@@ -1122,7 +1122,7 @@ class Poscar_U(Poscar):
             sort_structure: bool = False,
     ):
         """
-        FILL ME
+        FILL
         """
         # super().__init__(structure=Structure)
 
@@ -1191,24 +1191,22 @@ class Poscar_U(Poscar):
         return n_atoms
 
 
-class LinearResponseUSet(MPRelaxSet):
+class LinearResponseUSet(MPStaticSet):
     """
-    FILL ME
+    FILL
     """
     def __init__(self, structure, prev_incar=None, prev_kpoints=None,
                  lepsilon=False, lcalcpol=False, reciprocal_density=100,
                  small_gap_multiply=None, **kwargs):
         """
-        FILL ME
+        FILL
         """
         super().__init__(structure, **kwargs)
-        if isinstance(prev_incar, str):
-            prev_incar = Incar.from_file(prev_incar)
+
         if isinstance(prev_kpoints, str):
             prev_kpoints = Kpoints.from_file(prev_kpoints)
-
-        self.prev_incar = prev_incar
         self.prev_kpoints = prev_kpoints
+
         self.reciprocal_density = reciprocal_density
         self.kwargs = kwargs
         self.lepsilon = lepsilon
@@ -1218,48 +1216,42 @@ class LinearResponseUSet(MPRelaxSet):
     @property
     def incar(self):
         """
-        FILL ME
+        FILL
         """
         parent_incar = super().incar
         settings = dict(self._config_dict["INCAR"])
 
-        # Remove?
-        settings.pop("LDAUU")
-        settings.pop("LDAUJ")
-        settings.pop("LDAUL")
-
         structure = self.structure
-        # comp = structure.composition
-        # elements = sorted([el for el in comp.elements if comp[el] > 0],
-        #                   key=lambda e: e.X)
-        # most_electroneg = elements[-1].symbol
-        # poscar = Poscar(structure)
+
         # hubbard_u = settings.get("LDAU", False)
 
-        incar = Incar(self.prev_incar) if self.prev_incar is not None else \
-            Incar(parent_incar)
+        incar = Incar(parent_incar)
+
+        settings.pop("LDAUU", None)
+        settings.pop("LDAUJ", None)
+        settings.pop("LDAUL", None)
+
+        # Note that DFPT calculations MUST unset NSW. NSW = 0 will fail
+        # to output ionic.
+
+        settings.pop("NSW", None)
+        incar.pop("NSW", None)
 
         incar.update(
-            {"IBRION": -1, "ISMEAR": -5, "LAECHG": True, "LCHARG": True,
-             "LORBIT": 11, "LVHAR": True, "LWAVE": False, "NSW": 0,
-             "ICHARG": 0, "ALGO": "Normal"})
+            {"IBRION": -1, "LAECHG": True, "LCHARG": True,
+             "LORBIT": 11, "LVHAR": True, "LWAVE": False})
 
-        if self.lepsilon:
-            incar["IBRION"] = 8
-            incar["LEPSILON"] = True
+        # if self.lepsilon:
+        #     incar["IBRION"] = 8
+        #     incar["LEPSILON"] = True
 
-            # LPEAD=T: numerical evaluation of overlap integral prevents
-            # LRF_COMMUTATOR errors and can lead to better expt. agreement
-            # but produces slightly different results
-            incar["LPEAD"] = True
+        #     # LPEAD=T: numerical evaluation of overlap integral prevents
+        #     # LRF_COMMUTATOR errors and can lead to better expt. agreement
+        #     # but produces slightly different results
+        #     incar["LPEAD"] = True
 
-            # Note that DFPT calculations MUST unset NSW. NSW = 0 will fail
-            # to output ionic.
-            incar.pop("NSW", None)
-            incar.pop("NPAR", None)
-
-        if self.lcalcpol:
-            incar["LCALCPOL"] = True
+        # if self.lcalcpol:
+        #     incar["LCALCPOL"] = True
 
         for k, v in settings.items():
             if k == "MAGMOM":
@@ -1291,16 +1283,10 @@ class LinearResponseUSet(MPRelaxSet):
             else:
                 incar.pop(k, None)
 
-        # # This is the method that should be changed - we don't want LDAU to update?
-        # if incar.get('LDAU'):
-        #     u = incar.get('LDAUU', [])
-        #     j = incar.get('LDAUJ', [])
-        #     if sum([u[x] - j[x] for x, y in enumerate(u)]) > 0:
-        #         for tag in ('LDAUU', 'LDAUL', 'LDAUJ'):
-        #             incar.update({tag: parent_incar[tag]})
-        #     # ensure to have LMAXMIX for GGA+U static run
-        #     if "LMAXMIX" not in incar:
-        #         incar.update({"LMAXMIX": parent_incar["LMAXMIX"]})
+        if incar.get('LDAU'):
+            # ensure to have LMAXMIX for GGA+U static run
+            if "LMAXMIX" not in incar:
+                incar.update({"LMAXMIX": parent_incar["LMAXMIX"]})
 
         # Compare ediff between previous and staticinputset values,
         # choose the tighter ediff
@@ -1308,11 +1294,12 @@ class LinearResponseUSet(MPRelaxSet):
         incar["EDIFF"] = min(incar.get("EDIFF", 1), parent_incar["EDIFF"])
         if self.kwargs.get("user_incar_settings")["LDAUU"]:
 
-            incar["LDAUL"] = self.kwargs.get("user_incar_settings")["LDAUL"]
-            incar["LDAUU"] = self.kwargs.get("user_incar_settings")["LDAUU"]
-            incar["LDAUJ"] = self.kwargs.get("user_incar_settings")["LDAUJ"]
+            # Need to add another parameter for perturbed atom
 
-            # slight hack: need to add another parameter for perturbed atom
+            incar.update({"LDAUL": self.kwargs.get("user_incar_settings")["LDAUL"]})
+            incar.update({"LDAUU": self.kwargs.get("user_incar_settings")["LDAUU"]})
+            incar.update({"LDAUJ": self.kwargs.get("user_incar_settings")["LDAUJ"]})
+
             incar["LDAUL"] = [incar["LDAUL"][key] for key in incar["LDAUL"].keys()]
             incar["LDAUU"] = [incar["LDAUU"][key] for key in incar["LDAUU"].keys()]
             incar["LDAUJ"] = [incar["LDAUJ"][key] for key in incar["LDAUJ"].keys()]
@@ -1327,15 +1314,15 @@ class LinearResponseUSet(MPRelaxSet):
     @property
     def poscar(self):
         """
-        FILL ME
+        FILL
         """
-        poscar = Poscar_U(structure=super().structure)
+        poscar = PoscarPerturb(structure=super().structure)
         return poscar
 
     @property
     def kpoints(self):
         """
-        FILL ME
+        FILL
         """
         self._config_dict["KPOINTS"]["reciprocal_density"] = self.reciprocal_density
         kpoints = super().kpoints
@@ -1365,7 +1352,7 @@ class LinearResponseUSet(MPRelaxSet):
         """
         vasprun, outcar = get_vasprun_outcar(prev_calc_dir)
 
-        self.prev_incar = vasprun.incar
+        # self.prev_incar = vasprun.incar
         self.prev_kpoints = vasprun.kpoints
 
         if self.standardize:
@@ -1399,7 +1386,8 @@ class LinearResponseUSet(MPRelaxSet):
                 the prev_calc_dir.
         """
         input_set = cls(_dummy_structure, **kwargs)
-        return input_set.override_from_prev_calc(prev_calc_dir=prev_calc_dir)
+        return input_set
+        # return input_set.override_from_prev_calc(prev_calc_dir=prev_calc_dir)
 
 
 class MPHSEBSSet(MPHSERelaxSet):

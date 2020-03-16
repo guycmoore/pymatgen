@@ -192,7 +192,7 @@ class Poscar(MSONable):
     @property
     def sites(self):
         """
-        FILL ME
+        FILL
         """
         sites_array = [site for site in self.structure]
         return sites_array
