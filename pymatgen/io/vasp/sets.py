@@ -1160,7 +1160,9 @@ class PoscarPerturb(Poscar):
         syms = super().site_symbols
 
         if (self.perturb_index == 0):
-            syms_perturb = [syms[0]]
+            syms_perturb = []
+            if ((syms[0] == syms[1]) & (len(syms) > 1)):
+                syms_perturb = [syms[0]]
             syms_perturb.extend(syms)
         else:
             raise ValueError(
@@ -1201,7 +1203,8 @@ class LinearResponseUSet(MPStaticSet):
         """
         FILL
         """
-        super().__init__(structure, **kwargs)
+
+        super().__init__(structure, sort_structure=False, **kwargs)
 
         if isinstance(prev_kpoints, str):
             prev_kpoints = Kpoints.from_file(prev_kpoints)
