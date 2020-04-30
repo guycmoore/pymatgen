@@ -1226,8 +1226,6 @@ class LinearResponseUSet(MPStaticSet):
 
         structure = self.structure
 
-        # hubbard_u = settings.get("LDAU", False)
-
         incar = Incar(parent_incar)
 
         settings.pop("LDAUU", None)
@@ -1243,18 +1241,6 @@ class LinearResponseUSet(MPStaticSet):
         incar.update(
             {"IBRION": -1, "LAECHG": True, "LCHARG": True,
              "LORBIT": 11, "LVHAR": True, "LWAVE": False})
-
-        # if self.lepsilon:
-        #     incar["IBRION"] = 8
-        #     incar["LEPSILON"] = True
-
-        #     # LPEAD=T: numerical evaluation of overlap integral prevents
-        #     # LRF_COMMUTATOR errors and can lead to better expt. agreement
-        #     # but produces slightly different results
-        #     incar["LPEAD"] = True
-
-        # if self.lcalcpol:
-        #     incar["LCALCPOL"] = True
 
         for k, v in settings.items():
             if k == "MAGMOM":
