@@ -18,29 +18,32 @@ __date__ = "Mar 19, 2012"
 
 import os
 import unittest
-import pytest
-
-from math import sqrt
 from collections import defaultdict
+from math import sqrt
 
+import pytest
 from monty.json import MontyDecoder
+
+from pymatgen.core.composition import Composition
+from pymatgen.core.periodic_table import Element
+from pymatgen.core.lattice import Lattice
+from pymatgen.core.structure import Structure
 from pymatgen.entries.compatibility import (
+    MU_H2O,
+    AqueousCorrection,
     Compatibility,
     CompatibilityError,
-    MaterialsProjectCompatibility,
-    MITCompatibility,
-    AqueousCorrection,
-    MITAqueousCompatibility,
     MaterialsProject2020Compatibility,
     MaterialsProjectAqueousCompatibility,
-    MU_H2O,
+    MaterialsProjectCompatibility,
+    MITAqueousCompatibility,
+    MITCompatibility,
 )
 from pymatgen.entries.computed_entries import (
     ComputedEntry,
     ComputedStructureEntry,
     ConstantEnergyAdjustment,
 )
-from pymatgen import Composition, Lattice, Structure, Element
 
 
 # abstract Compatibility tests
@@ -296,9 +299,7 @@ class MaterialsProjectCompatibilityTest(unittest.TestCase):
 
     def test_correction_values(self):
         # test_corrections
-        self.assertAlmostEqual(
-            self.compat.process_entry(self.entry1).correction, -2.733 * 2 - 0.70229 * 3
-        )
+        self.assertAlmostEqual(self.compat.process_entry(self.entry1).correction, -2.733 * 2 - 0.70229 * 3)
 
         entry = ComputedEntry(
             "FeF3",
@@ -325,9 +326,7 @@ class MaterialsProjectCompatibilityTest(unittest.TestCase):
         # Check actual correction
         self.assertAlmostEqual(self.compat.process_entry(entry).correction, -2.733)
 
-        self.assertAlmostEqual(
-            self.compat.process_entry(self.entry_sulfide).correction, -0.66346
-        )
+        self.assertAlmostEqual(self.compat.process_entry(self.entry_sulfide).correction, -0.66346)
 
     def test_U_values(self):
         # Wrong U value
@@ -528,9 +527,7 @@ class MaterialsProjectCompatibilityTest(unittest.TestCase):
         self.assertNotIn("MP Advanced Correction", c)
 
     def test_process_entries(self):
-        entries = self.compat.process_entries(
-            [self.entry1, self.entry2, self.entry3, self.entry4]
-        )
+        entries = self.compat.process_entries([self.entry1, self.entry2, self.entry3, self.entry4])
         self.assertEqual(len(entries), 2)
 
     def test_msonable(self):
@@ -541,7 +538,7 @@ class MaterialsProjectCompatibilityTest(unittest.TestCase):
 
     def test_deprecation_warning(self):
         # test that initializing compatibility causes deprecation warning
-        with self.assertWarns(DeprecationWarning):
+        with self.assertWarns(FutureWarning):
             MaterialsProjectCompatibility(check_potcar_hash=False)
 
 
@@ -631,9 +628,7 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
         )
 
         self.compat = MaterialsProject2020Compatibility(check_potcar_hash=False)
-        self.ggacompat = MaterialsProject2020Compatibility(
-            "GGA", check_potcar_hash=False
-        )
+        self.ggacompat = MaterialsProject2020Compatibility("GGA", check_potcar_hash=False)
 
     def tearDown(self):
         warnings.simplefilter("default")
@@ -691,9 +686,7 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
 
     def test_correction_values(self):
         # test_corrections
-        self.assertAlmostEqual(
-            self.compat.process_entry(self.entry1).correction, -2.181 * 2 - 0.738 * 3
-        )
+        self.assertAlmostEqual(self.compat.process_entry(self.entry1).correction, -2.182 * 2 - 0.74 * 3)
 
         entry = ComputedEntry(
             "FeF3",
@@ -718,13 +711,9 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
         self.assertIsNotNone(self.compat.process_entry(entry))
 
         # Check actual correction
-        self.assertAlmostEqual(
-            self.compat.process_entry(entry).correction, -0.481 * 3 + -2.181
-        )
+        self.assertAlmostEqual(self.compat.process_entry(entry).correction, -0.485 * 3 + -2.182)
 
-        self.assertAlmostEqual(
-            self.compat.process_entry(self.entry_sulfide).correction, -0.637
-        )
+        self.assertAlmostEqual(self.compat.process_entry(self.entry_sulfide).correction, -0.639)
 
     def test_oxdiation_by_electronegativity(self):
         # make sure anion corrections are only applied when the element has
@@ -785,7 +774,7 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
         self.assertAlmostEqual(self.compat.process_entry(entry1).correction, -0.406 * 2)
 
         # SiO2; only corrections should be oxide
-        self.assertAlmostEqual(self.compat.process_entry(entry2).correction, -0.738 * 4)
+        self.assertAlmostEqual(self.compat.process_entry(entry2).correction, -0.74 * 4)
 
     def test_oxdiation(self):
         # make sure anion corrections are only applied when the element has
@@ -811,9 +800,10 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
                     "potcar_symbols": ["PBE Ca_sv", "PBE Si"],
                     "oxide_type": "None",
                 },
-                "data": {"oxide_type": "None",
-                         "oxidation_states": {'Ca': 2.0, 'Si': -2.0}
-                         },
+                "data": {
+                    "oxide_type": "None",
+                    "oxidation_states": {"Ca": 2.0, "Si": -2.0},
+                },
                 "entry_id": "mp-1563",
                 "correction": 0.0,
             }
@@ -838,9 +828,10 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
                     "potcar_symbols": ["PBE Si", "PBE O"],
                     "oxide_type": "oxide",
                 },
-                "data": {"oxide_type": "oxide",
-                         "oxidation_states": {'Si': 4.0, 'O': -2.0}
-                         },
+                "data": {
+                    "oxide_type": "oxide",
+                    "oxidation_states": {"Si": 4.0, "O": -2.0},
+                },
                 "entry_id": "mp-546794",
                 "correction": 0.0,
             }
@@ -850,7 +841,7 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
         self.assertAlmostEqual(self.compat.process_entry(entry1).correction, -0.406 * 2)
 
         # SiO2; only corrections should be oxide
-        self.assertAlmostEqual(self.compat.process_entry(entry2).correction, -0.738 * 4)
+        self.assertAlmostEqual(self.compat.process_entry(entry2).correction, -0.74 * 4)
 
     def test_U_values(self):
         # Wrong U value
@@ -1015,41 +1006,58 @@ class MaterialsProject2020CompatibilityTest(unittest.TestCase):
         d = compat.get_explanation_dict(entry)
         self.assertEqual("MPRelaxSet Potcar Correction", d["corrections"][0]["name"])
 
-    def test_get_corrections_dict(self):
+    def test_energy_adjustments(self):
         compat = MaterialsProject2020Compatibility(check_potcar_hash=False)
         ggacompat = MaterialsProject2020Compatibility("GGA", check_potcar_hash=False)
 
-        # Correct parameters
-        entry = ComputedEntry(
-            "Fe2O3",
-            -1,
-            correction=0.0,
-            parameters={
-                "is_hubbard": True,
-                "hubbards": {"Fe": 5.3, "O": 0},
+        # Fe 4 Co 2 O 8 (Fe2CoO4)
+        entry = {
+            "@module": "pymatgen.entries.computed_entries",
+            "@class": "ComputedEntry",
+            "energy": -91.94962744,
+            "composition": defaultdict(float, {"Fe": 4.0, "Co": 2.0, "O": 8.0}),
+            "energy_adjustments": [],
+            "parameters": {
                 "run_type": "GGA+U",
-                "potcar_spec": [
-                    {
-                        "titel": "PAW_PBE Fe_pv 06Sep2000",
-                        "hash": "994537de5c4122b7f1b77fb604476db4",
-                    },
-                    {
-                        "titel": "PAW_PBE O 08Apr2002",
-                        "hash": "7a25bc5b9a5393f46600a4939d357982",
-                    },
-                ],
+                "is_hubbard": True,
+                "pseudo_potential": {
+                    "functional": "PBE",
+                    "labels": ["Fe_pv", "Co", "O"],
+                    "pot_type": "paw",
+                },
+                "hubbards": {"Fe": 5.3, "Co": 3.32, "O": 0.0},
+                "potcar_symbols": ["PBE Fe_pv", "PBE Co", "PBE O"],
+                "oxide_type": "oxide",
             },
-        )
-        c, e = compat.get_corrections_dict(entry)
-        self.assertAlmostEqual(c["MP2020 Composition Correction"], -0.738 * 3)
-        self.assertAlmostEqual(c["MP2020 Advanced Correction"], -2.181 * 2)
-        self.assertAlmostEqual(e["MP2020 Composition Correction"], 0.0017 * 3)
-        self.assertAlmostEqual(e["MP2020 Advanced Correction"], 0.009 * 2)
+            "data": {"oxide_type": "oxide"},
+            "entry_id": "mp-753222",
+            "correction": 0,
+        }
+        entry = ComputedEntry.from_dict(entry)
+
+        c = compat.process_entry(entry)
+        assert "MP2020 anion correction (oxide)" in [ea.name for ea in c.energy_adjustments]
+        assert "MP2020 GGA/GGA+U mixing correction (Fe)" in [ea.name for ea in c.energy_adjustments]
+        assert "MP2020 GGA/GGA+U mixing correction (Co)" in [ea.name for ea in c.energy_adjustments]
+
+        for ea in c.energy_adjustments:
+            if ea.name == "MP2020 GGA/GGA+U mixing correction (Fe)":
+                self.assertAlmostEqual(ea.value, -2.182 * 4)
+                self.assertAlmostEqual(ea.uncertainty, 0.009 * 4)
+            elif ea.name == "MP2020 GGA/GGA+U mixing correction (Co)":
+                self.assertAlmostEqual(ea.value, -1.535 * 2)
+                self.assertAlmostEqual(ea.uncertainty, 0.0059 * 2)
+            elif ea.name == "MP2020 anion correction (oxide)":
+                self.assertAlmostEqual(ea.value, -0.74 * 8)
+                self.assertAlmostEqual(ea.uncertainty, 0.0017 * 8)
 
         entry.parameters["is_hubbard"] = False
         del entry.parameters["hubbards"]
-        c, e = ggacompat.get_corrections_dict(entry)
-        self.assertNotIn("test Advanced Correction", c)
+        c = ggacompat.process_entry(entry)
+        self.assertNotIn(
+            "MP2020 GGA/GGA+U mixing correction",
+            [ea.name for ea in c.energy_adjustments],
+        )
 
     def test_process_entries(self):
         entries = self.compat.process_entries([self.entry1, self.entry2, self.entry3])
@@ -1139,15 +1147,9 @@ class MITCompatibilityTest(unittest.TestCase):
 
     def test_correction_value(self):
         # Check actual correction
-        self.assertAlmostEqual(
-            self.compat.process_entry(self.entry_O).correction, -1.723 * 2 - 0.66975 * 3
-        )
-        self.assertAlmostEqual(
-            self.compat.process_entry(self.entry_F).correction, -1.723
-        )
-        self.assertAlmostEqual(
-            self.compat.process_entry(self.entry_S).correction, -1.113
-        )
+        self.assertAlmostEqual(self.compat.process_entry(self.entry_O).correction, -1.723 * 2 - 0.66975 * 3)
+        self.assertAlmostEqual(self.compat.process_entry(self.entry_F).correction, -1.723)
+        self.assertAlmostEqual(self.compat.process_entry(self.entry_S).correction, -1.113)
 
     def test_U_value(self):
         # MIT should have a U value for Fe containing sulfides
@@ -1455,9 +1457,7 @@ class OxideTypeCorrectionTest(unittest.TestCase):
     def test_process_entry_superoxide(self):
         el_li = Element("Li")
         el_o = Element("O")
-        latt = Lattice(
-            [[3.985034, 0.0, 0.0], [0.0, 4.881506, 0.0], [0.0, 0.0, 2.959824]]
-        )
+        latt = Lattice([[3.985034, 0.0, 0.0], [0.0, 4.881506, 0.0], [0.0, 0.0, 2.959824]])
         elts = [el_li, el_li, el_o, el_o, el_o, el_o]
         coords = list()
         coords.append([0.500000, 0.500000, 0.500000])
@@ -1491,9 +1491,7 @@ class OxideTypeCorrectionTest(unittest.TestCase):
         self.assertAlmostEqual(lio2_entry_corrected.energy, -3 - 0.13893 * 4, 4)
 
     def test_process_entry_peroxide(self):
-        latt = Lattice.from_parameters(
-            3.159597, 3.159572, 7.685205, 89.999884, 89.999674, 60.000510
-        )
+        latt = Lattice.from_parameters(3.159597, 3.159572, 7.685205, 89.999884, 89.999674, 60.000510)
         el_li = Element("Li")
         el_o = Element("O")
         elts = [el_li, el_li, el_li, el_li, el_o, el_o, el_o, el_o]
@@ -1535,9 +1533,7 @@ class OxideTypeCorrectionTest(unittest.TestCase):
         el_li = Element("Li")
         el_o = Element("O")
         elts = [el_li, el_o, el_o, el_o]
-        latt = Lattice.from_parameters(
-            3.999911, 3.999911, 3.999911, 133.847504, 102.228244, 95.477342
-        )
+        latt = Lattice.from_parameters(3.999911, 3.999911, 3.999911, 133.847504, 102.228244, 95.477342)
         coords = [
             [0.513004, 0.513004, 1.000000],
             [0.017616, 0.017616, 0.000000],
@@ -1757,9 +1753,7 @@ class SulfideTypeCorrection2020Test(unittest.TestCase):
         struct_corrected = self.compat.process_entry(na2s2_entry_struct)
         nostruct_corrected = self.compat.process_entry(na2s2_entry_nostruct)
 
-        self.assertAlmostEqual(
-            struct_corrected.correction, nostruct_corrected.correction, 4
-        )
+        self.assertAlmostEqual(struct_corrected.correction, nostruct_corrected.correction, 4)
 
 
 class OxideTypeCorrectionNoPeroxideCorrTest(unittest.TestCase):
@@ -1797,9 +1791,7 @@ class OxideTypeCorrectionNoPeroxideCorrTest(unittest.TestCase):
         self.assertAlmostEqual(li2o_entry_corrected.energy, -3.0 - 0.66975, 4)
 
     def test_peroxide_energy_corr(self):
-        latt = Lattice.from_parameters(
-            3.159597, 3.159572, 7.685205, 89.999884, 89.999674, 60.000510
-        )
+        latt = Lattice.from_parameters(3.159597, 3.159572, 7.685205, 89.999884, 89.999674, 60.000510)
         el_li = Element("Li")
         el_o = Element("O")
         elts = [el_li, el_li, el_li, el_li, el_o, el_o, el_o, el_o]
@@ -1835,20 +1827,14 @@ class OxideTypeCorrectionNoPeroxideCorrTest(unittest.TestCase):
         )
 
         li2o2_entry_corrected = self.compat.process_entry(li2o2_entry)
-        self.assertRaises(
-            AssertionError,
-            self.assertAlmostEqual,
-            *(li2o2_entry_corrected.energy, -3 - 0.44317 * 4, 4)
-        )
+        self.assertRaises(AssertionError, self.assertAlmostEqual, *(li2o2_entry_corrected.energy, -3 - 0.44317 * 4, 4))
         self.assertAlmostEqual(li2o2_entry_corrected.energy, -3 - 0.66975 * 4, 4)
 
     def test_ozonide(self):
         el_li = Element("Li")
         el_o = Element("O")
         elts = [el_li, el_o, el_o, el_o]
-        latt = Lattice.from_parameters(
-            3.999911, 3.999911, 3.999911, 133.847504, 102.228244, 95.477342
-        )
+        latt = Lattice.from_parameters(3.999911, 3.999911, 3.999911, 133.847504, 102.228244, 95.477342)
         coords = [
             [0.513004, 0.513004, 1.000000],
             [0.017616, 0.017616, 0.000000],
@@ -1903,7 +1889,10 @@ class TestMaterialsProjectAqueousCompatibility:
     def test_h_h2o_energy_with_args(self):
 
         compat = MaterialsProjectAqueousCompatibility(
-            o2_energy=-4.9276, h2o_energy=-5.195, h2o_adjustments=-0.234
+            o2_energy=-4.9276,
+            h2o_energy=-5.195,
+            h2o_adjustments=-0.234,
+            solid_compat=None,
         )
 
         h2o_entry_1 = ComputedEntry(Composition("H2O"), -16)
@@ -1920,36 +1909,24 @@ class TestMaterialsProjectAqueousCompatibility:
         o2_entry_1 = ComputedEntry(Composition("O2"), -4.9276 * 2)
         o2_entry_1 = compat.process_entries(o2_entry_1)[0]
 
-        h2o_form_e = (
-            3 * h2o_entry_2.energy_per_atom
-            - 2 * h2_entry_2.energy_per_atom
-            - o2_entry_1.energy_per_atom
-        )
+        h2o_form_e = 3 * h2o_entry_2.energy_per_atom - 2 * h2_entry_2.energy_per_atom - o2_entry_1.energy_per_atom
         assert h2o_form_e == pytest.approx(MU_H2O)
 
     def test_h_h2o_energy_no_args(self):
 
-        with pytest.warns(
-            UserWarning, match="You did not provide the required O2 and H2O energies."
-        ):
-            compat = MaterialsProjectAqueousCompatibility()
+        with pytest.warns(UserWarning, match="You did not provide the required O2 and H2O energies."):
+            compat = MaterialsProjectAqueousCompatibility(solid_compat=None)
 
-        h2o_entry_1 = ComputedEntry(
-            Composition("H2O"), (-5.195 + 0.234) * 3, correction=-0.234 * 3
-        )
+        h2o_entry_1 = ComputedEntry(Composition("H2O"), (-5.195 + 0.234) * 3, correction=-0.234 * 3)
         h2o_entry_2 = ComputedEntry(Composition("H4O2"), -10)
         h2_entry_1 = ComputedEntry(Composition("H2"), -16)
         h2_entry_2 = ComputedEntry(Composition("H8"), -100)
         o2_entry_1 = ComputedEntry(Composition("O2"), -4.9276 * 2)
 
-        with pytest.raises(
-            CompatibilityError, match="Either specify the energies as arguments to "
-        ):
+        with pytest.raises(CompatibilityError, match="Either specify the energies as arguments to "):
             compat.get_adjustments(h2_entry_1)
 
-        entries = compat.process_entries(
-            [h2o_entry_1, h2o_entry_2, h2_entry_1, h2_entry_2, o2_entry_1]
-        )
+        entries = compat.process_entries([h2o_entry_1, h2o_entry_2, h2_entry_1, h2_entry_2, o2_entry_1])
 
         assert compat.o2_energy == -4.9276
         assert compat.h2o_energy == -5.195
@@ -1958,23 +1935,15 @@ class TestMaterialsProjectAqueousCompatibility:
         h2o_entries = [e for e in entries if e.composition.reduced_formula == "H2O"]
         h2_entries = [e for e in entries if e.composition.reduced_formula == "H2"]
 
-        assert h2o_entries[0].energy_per_atom == pytest.approx(
-            h2o_entries[1].energy_per_atom
-        )
-        assert h2_entries[0].energy_per_atom == pytest.approx(
-            h2_entries[1].energy_per_atom
-        )
+        assert h2o_entries[0].energy_per_atom == pytest.approx(h2o_entries[1].energy_per_atom)
+        assert h2_entries[0].energy_per_atom == pytest.approx(h2_entries[1].energy_per_atom)
 
-        h2o_form_e = (
-            3 * h2o_entries[1].energy_per_atom
-            - 2 * h2_entries[0].energy_per_atom
-            - o2_entry_1.energy_per_atom
-        )
+        h2o_form_e = 3 * h2o_entries[1].energy_per_atom - 2 * h2_entries[0].energy_per_atom - o2_entry_1.energy_per_atom
         assert h2o_form_e == pytest.approx(MU_H2O)
 
     def test_compound_entropy(self):
         compat = MaterialsProjectAqueousCompatibility(
-            o2_energy=-10, h2o_energy=-20, h2o_adjustments=-0.5
+            o2_energy=-10, h2o_energy=-20, h2o_adjustments=-0.5, solid_compat=None
         )
 
         o2_entry_1 = ComputedEntry(Composition("O2"), -4.9276 * 2)
@@ -1983,13 +1952,11 @@ class TestMaterialsProjectAqueousCompatibility:
         o2_entry_1 = compat.process_entries(o2_entry_1)[0]
         processed_energy = o2_entry_1.energy_per_atom
 
-        assert initial_energy - processed_energy == pytest.approx(
-            compat.cpd_entropies["O2"]
-        )
+        assert initial_energy - processed_energy == pytest.approx(compat.cpd_entropies["O2"])
 
     def test_hydrate_adjustment(self):
         compat = MaterialsProjectAqueousCompatibility(
-            o2_energy=-10, h2o_energy=-20, h2o_adjustments=-0.5
+            o2_energy=-10, h2o_energy=-20, h2o_adjustments=-0.5, solid_compat=None
         )
 
         hydrate_entry = ComputedEntry(Composition("FeH4O2"), -10)
@@ -1998,9 +1965,7 @@ class TestMaterialsProjectAqueousCompatibility:
         hydrate_entry = compat.process_entries(hydrate_entry)[0]
         processed_energy = hydrate_entry.energy
 
-        assert initial_energy - processed_energy == pytest.approx(
-            2 * (compat.h2o_adjustments * 3 + MU_H2O)
-        )
+        assert initial_energy - processed_energy == pytest.approx(2 * (compat.h2o_adjustments * 3 + MU_H2O))
 
 
 class AqueousCorrectionTest(unittest.TestCase):
@@ -2010,14 +1975,10 @@ class AqueousCorrectionTest(unittest.TestCase):
         self.corr = AqueousCorrection(fp)
 
     def test_compound_energy(self):
-        O2_entry = self.corr.correct_entry(
-            ComputedEntry(Composition("O2"), -4.9355 * 2)
-        )
+        O2_entry = self.corr.correct_entry(ComputedEntry(Composition("O2"), -4.9355 * 2))
         H2_entry = self.corr.correct_entry(ComputedEntry(Composition("H2"), 3))
         H2O_entry = self.corr.correct_entry(ComputedEntry(Composition("H2O"), 3))
-        H2O_formation_energy = H2O_entry.energy - (
-            H2_entry.energy + O2_entry.energy / 2.0
-        )
+        H2O_formation_energy = H2O_entry.energy - (H2_entry.energy + O2_entry.energy / 2.0)
         self.assertAlmostEqual(H2O_formation_energy, -2.46, 2)
 
         entry = ComputedEntry(Composition("H2O"), -16)
@@ -2046,9 +2007,7 @@ class MITAqueousCompatibilityTest(unittest.TestCase):
         el_li = Element("Li")
         el_o = Element("O")
         el_h = Element("H")
-        latt = Lattice.from_parameters(
-            3.565276, 3.565276, 4.384277, 90.000000, 90.000000, 90.000000
-        )
+        latt = Lattice.from_parameters(3.565276, 3.565276, 4.384277, 90.000000, 90.000000, 90.000000)
         elts = [el_h, el_h, el_li, el_li, el_o, el_o]
         coords = [
             [0.000000, 0.500000, 0.413969],
@@ -2085,18 +2044,14 @@ class MITAqueousCompatibilityTest(unittest.TestCase):
         lioh_entry_compat = self.compat.process_entry(lioh_entry)
         lioh_entry_compat_aqcorr = self.aqcorr.correct_entry(lioh_entry_compat)
         lioh_entry_aqcompat = self.aqcompat.process_entry(lioh_entry)
-        self.assertAlmostEqual(
-            lioh_entry_compat_aqcorr.energy, lioh_entry_aqcompat.energy, 4
-        )
+        self.assertAlmostEqual(lioh_entry_compat_aqcorr.energy, lioh_entry_aqcompat.energy, 4)
 
     def test_potcar_doenst_match_structure(self):
         compat = MITCompatibility()
         el_li = Element("Li")
         el_o = Element("O")
         el_h = Element("H")
-        latt = Lattice.from_parameters(
-            3.565276, 3.565276, 4.384277, 90.000000, 90.000000, 90.000000
-        )
+        latt = Lattice.from_parameters(3.565276, 3.565276, 4.384277, 90.000000, 90.000000, 90.000000)
         elts = [el_h, el_h, el_li, el_li, el_o, el_o]
         coords = [
             [0.000000, 0.500000, 0.413969],
