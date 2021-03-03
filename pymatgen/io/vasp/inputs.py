@@ -660,7 +660,13 @@ class Incar(dict, MSONable):
                 val = []
                 for i in range(len(params["MAGMOM"]) // 3):
                     val.append(params["MAGMOM"][i * 3 : (i + 1) * 3])
-                params["MAGMOM"] = val
+                params["MAGMOM"] = val.copy()
+
+                if (params.get("M_CONSTR") and isinstance(params["M_CONSTR"][0], (int, float))):
+                    val = []
+                    for i in range(len(params["M_CONSTR"]) // 3):
+                        val.append(params["M_CONSTR"][i * 3 : (i + 1) * 3])
+                    params["M_CONSTR"] = val.copy()
 
             self.update(params)
 
@@ -692,6 +698,8 @@ class Incar(dict, MSONable):
         """
         if d.get("MAGMOM") and isinstance(d["MAGMOM"][0], dict):
             d["MAGMOM"] = [Magmom.from_dict(m) for m in d["MAGMOM"]]
+        if d.get("M_CONSTR") and isinstance(d["M_CONSTR"][0], dict):
+            d["M_CONSTR"] = [Magmom.from_dict(m) for m in d["M_CONSTR"]]
         return Incar({k: v for k, v in d.items() if k not in ("@module", "@class")})
 
     def get_string(self, sort_keys: bool = False, pretty: bool = False) -> str:
@@ -711,7 +719,7 @@ class Incar(dict, MSONable):
             keys = sorted(keys)
         lines = []
         for k in keys:
-            if k == "MAGMOM" and isinstance(self[k], list):
+            if (k == "MAGMOM" or k == "M_CONSTR") and isinstance(self[k], list):
                 value = []
 
                 if isinstance(self[k][0], (list, Magmom)) and (self.get("LSORBIT") or self.get("LNONCOLLINEAR")):
@@ -800,6 +808,8 @@ class Incar(dict, MSONable):
             "LDAUL",
             "LDAUJ",
             "MAGMOM",
+            "M_CONSTR",
+            "RWIGS",
             "DIPOL",
             "LANGEVIN_GAMMA",
             "QUAD_EFG",
@@ -828,6 +838,7 @@ class Incar(dict, MSONable):
             "AGGAC",
             "PARAM1",
             "PARAM2",
+            "LAMBDA",
         )
         int_keys = (
             "NSW",
@@ -849,6 +860,7 @@ class Incar(dict, MSONable):
             "ISPIND",
             "LDAUTYPE",
             "IVDW",
+            "I_CONSTRAINED_M",
         )
 
         def smart_int_or_float(numstr):
