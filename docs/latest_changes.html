@@ -1,19 +1,15 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en" >
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
 <head>
   <meta charset="utf-8">
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Change log &mdash; pymatgen 2020.8.13 documentation</title>
+  <title>Change log &mdash; pymatgen 2022.0.9 documentation</title>
   
-
-  
-  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
-  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
-  <link rel="stylesheet" href="_static/css/custom.css" type="text/css" />
 
   
   
@@ -23,9 +19,7 @@
   
 
   
-  <!--[if lt IE 9]>
-    <script src="_static/js/html5shiv.min.js"></script>
-  <![endif]-->
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
   
     
       <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
@@ -38,6 +32,11 @@
     <script type="text/javascript" src="_static/js/theme.js"></script>
 
     
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="_static/css/custom.css" type="text/css" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
  
@@ -60,7 +59,7 @@
           
 
           
-            <a href="index.html" class="icon icon-home" alt="Documentation Home"> pymatgen
+            <a href="index.html" class="icon icon-home"> pymatgen
           
 
           
@@ -70,7 +69,7 @@
             
             
               <div class="version">
-                2020.8.13
+                2022.0.9
               </div>
             
           
@@ -87,7 +86,6 @@
           
         </div>
 
-        
         <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
           
             
@@ -99,6 +97,8 @@
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="change_log.html">Change log</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compatibility.html">Compatibility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1"><a class="reference internal" href="team.html">Development Team</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
@@ -108,7 +108,6 @@
             
           
         </div>
-        
       </div>
     </nav>
 
@@ -147,7 +146,7 @@
 
   <ul class="wy-breadcrumbs">
     
-      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li><a href="index.html">Docs</a> &raquo;</li>
         
       <li>Change log</li>
     
@@ -172,17 +171,30 @@
             
   <div class="section" id="change-log">
 <h1>Change log<a class="headerlink" href="#change-log" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="v2020-8-13">
-<h2>v2020.8.13<a class="headerlink" href="#v2020-8-13" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="v2022-0-9">
+<h2>v2022.0.9<a class="headerlink" href="#v2022-0-9" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
-<li><p>New GibbsComputedStructureEntry (&#64;mattmcdermott, #1921)</p></li>
-<li><p>Changes to MPScanRelaxSet and new MPScanStaticSet (&#64;rkingsbury, #1917)</p></li>
-<li><p>Changes to LobsterSet (&#64;JaGeo, #1928)</p></li>
-<li><p>Bug fix and change for MPRelaxSet (&#64;mkhorton, 9eb3ac2)</p></li>
-<li><p>Bug fix for JMolNN (&#64;utf, #1920)</p></li>
-<li><p>Bug fix for Element valences (&#64;rkurchin, #1926)</p></li>
-<li><p>Bug fix for BabelMolAdaptor (&#64;smheidrich, #1924)</p></li>
-<li><p>Bug fix for Gaussion IO (&#64;eimrek, #1918)</p></li>
+<li><p>Significant new functionality for handling interfaces between structures (&#64;shyamd, #2149)</p></li>
+<li><p>Add input/output for CREST (&#64;arepstein, #2020)</p></li>
+<li><p>Add RadialSiteDistortionTransformation (&#64;nwinner, #2108)</p></li>
+<li><p>Add Q-Chem NBO functionality (&#64;samblau, #2174)</p></li>
+<li><p>Change hkl annotation format in diffraction plots (&#64;flaviu-gostin, #2143)</p></li>
+<li><p>Add space group to print output of <cite>SymmetrizedStructure</cite> (&#64;CompRhys, #2139)</p></li>
+<li><p>Better error handling in QCOutput (&#64;rkingsbury, #2147, #2165, #2135)</p></li>
+<li><p>Add progress bar for applying compatibility scheme (&#64;CompRhys, #2136)</p></li>
+<li><p>Allow combining data with multiple molecule IDs in LAMMPS (&#64;htz1992213, #2157)</p></li>
+<li><p>Update EDIFF in DFPT input set to be consistent with atomate (&#64;utf, #2172)</p></li>
+<li><p>Change names of high-symmetry paths (&#64;munrojm, #2144)</p></li>
+<li><p>Change default for filter_solids argument of PourbaixDiagram (&#64;rkingsbury, #2177)</p></li>
+<li><p>Fix to improve precision in <cite>FermiDos</cite>, NOTE: this can result in significant changes in some instances (&#64;nwinner, #2109)</p></li>
+<li><p>Fix for handling of Exceptions (&#64;kmu, #2150)</p></li>
+<li><p>Fix for PourbaixEntry (&#64;JosephMontoya-TRI, #2148)</p></li>
+<li><p>Fix for loading of settings from file when environment variables also set (&#64;ardunn, #2164)</p></li>
+<li><p>Fix equation for calculation of k-spacing in SCAN sets, NOTE: this now results in a lower k-point density (&#64;ab5424, #2163)</p></li>
+<li><p>Fix for parsing of VASP vasprun.xml when ALGO=CHI (&#64;KazMorita, #2171)</p></li>
+<li><p>Documentation update for MP2020 corrections scheme (&#64;rkingsbury, #2141)</p></li>
+<li><p>Documentation update for SCAN sets (&#64;janosh, #2140)</p></li>
+<li><p>Documentation update for using CifWriter (&#64;755452800, #2156)</p></li>
 </ul>
 </div>
 </div>
@@ -198,19 +210,11 @@
 
   <div role="contentinfo">
     <p>
-        
         &copy; Copyright 2011, Pymatgen Development Team
 
     </p>
   </div>
-    
-    
-    
-    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
-    
-    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
-    
-    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
 
 </footer>
 
@@ -221,6 +225,7 @@
 
   </div>
   
+
 
   <script type="text/javascript">
       jQuery(function () {
