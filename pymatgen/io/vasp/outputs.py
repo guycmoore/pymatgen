@@ -101,11 +101,17 @@ def _parse_v_parameters(val_type, val, filename, param_name):
         try:
             val = [float(i) for i in val.split()]
         except ValueError:
-            # Fix for stupid error in vasprun sometimes which displays
-            # MAGMOM as 2****
-            val = _parse_from_incar(filename, param_name)
-            if val is None:
-                raise IOError("Error in parsing vasprun.xml")
+            # GCM: Hack try statement
+            try:
+                # Fix for stupid error in vasprun sometimes which displays
+                # MAGMOM as 2****
+                print("FILENAME: ", filename)
+                val = _parse_from_incar(filename, param_name)
+                if val is None:
+                    raise IOError("Error in parsing vasprun.xml")
+            except Exception as exc:
+                val = []
+                print(exc)
     return val
 
 
@@ -1678,36 +1684,40 @@ class Outcar:
 
         all_lines = []
         for line in reverse_readfile(self.filename):
-            clean = line.strip()
-            all_lines.append(clean)
-            if clean.find("soft stop encountered!  aborting job") != -1:
-                self.is_stopped = True
-            else:
-                if time_patt.search(line):
-                    tok = line.strip().split(":")
-                    run_stats[tok[0].strip()] = float(tok[1].strip())
-                    continue
-                m = efermi_patt.search(clean)
-                if m:
-                    try:
-                        # try-catch because VASP sometimes prints
-                        # 'E-fermi: ********     XC(G=0):  -6.1327
-                        # alpha+bet : -1.8238'
-                        efermi = float(m.group(1))
+            # GCM: Hack try statement
+            try:
+                clean = line.strip()
+                all_lines.append(clean)
+                if clean.find("soft stop encountered!  aborting job") != -1:
+                    self.is_stopped = True
+                else:
+                    if time_patt.search(line):
+                        tok = line.strip().split(":")
+                        run_stats[tok[0].strip()] = float(tok[1].strip())
                         continue
-                    except ValueError:
-                        efermi = None
-                        continue
-                m = nelect_patt.search(clean)
-                if m:
-                    nelect = float(m.group(1))
-                m = mag_patt.search(clean)
-                if m:
-                    total_mag = float(m.group(1))
-                if total_energy is None:
-                    m = toten_pattern.search(clean)
+                    m = efermi_patt.search(clean)
                     if m:
-                        total_energy = float(m.group(1))
+                        try:
+                            # try-catch because VASP sometimes prints
+                            # 'E-fermi: ********     XC(G=0):  -6.1327
+                            # alpha+bet : -1.8238'
+                            efermi = float(m.group(1))
+                            continue
+                        except ValueError:
+                            efermi = None
+                            continue
+                    m = nelect_patt.search(clean)
+                    if m:
+                        nelect = float(m.group(1))
+                    m = mag_patt.search(clean)
+                    if m:
+                        total_mag = float(m.group(1))
+                    if total_energy is None:
+                        m = toten_pattern.search(clean)
+                        if m:
+                            total_energy = float(m.group(1))
+            except Exception as exc:
+                print(exc)
             if all([nelect, total_mag is not None, efermi is not None, run_stats]):
                 break
 
@@ -1771,7 +1781,7 @@ class Outcar:
             mag = []
             for idx in range(len(mag_x)):
                 mag.append(
-                    {key: Magmom([mag_x[idx][key], mag_y[idx][key], mag_z[idx][key]]) for key in mag_x[0].keys()}
+                    {key: [mag_x[idx][key], mag_y[idx][key], mag_z[idx][key]] for key in mag_x[0].keys()}
                 )
         else:
             mag = mag_x
@@ -4140,6 +4150,57 @@ class Oszicar:
                     header = line.strip().replace("d eps", "deps").split()
         self.electronic_steps = electronic_steps
         self.ionic_steps = ionic_steps
+
+        # constrained local moment output
+        magmom_constrain_out = []
+        d, line_counter, read_forces, done_reading = {}, -1, False, False
+        with zopen(filename, "rt") as fid:
+            for line in fid:
+                if ("E_p =" in line) and (line_counter == -1):
+                    d = {"header":[],"output":[]}
+                    line_counter, done_reading = 0, False
+                if line_counter >= 0:
+                    line_split = line.split()
+                    if not line_split:
+                        line_split = ["DONE"] # This is a temp. fix
+                    if line_counter == 0:
+                        energy_penalty = float(line_split[2+line_split.index("E_p")])
+                        lam = float(line_split[2+line_split.index("lambda")])
+                        d.update({"E_p":energy_penalty, "lambda":lam})
+                    elif line_split[0] == "ion":
+                        d["column_names"] = line_split.copy()
+                        read_forces = True
+                    else:
+                        if read_forces:
+                            try:
+                                for a in line_split[1:]:
+                                    float(a)
+                                are_floats = True
+                            except Exception as exc:
+                                are_floats = False
+                            if line_split[0].isdigit() and are_floats:
+                                d["output"].append(
+                                    {"ion":int(line_split[0]), 
+                                     "column_out":[float(a) for a in line_split[1:]]}
+                                )
+                            else:
+                                line_counter = -1
+                                read_forces = False
+                                done_reading = True
+                        else:
+                            d["header"].append(line_split.copy())
+                    if not done_reading:
+                        # update line_counter
+                        line_counter += 1
+                    else:
+                        magmom_constrain_out.append(d.copy())
+                        d = {}
+        if d:
+            # check end of file
+            magmom_constrain_out.append(d.copy())
+            d = {}
+
+        self.magmom_constrain_out = magmom_constrain_out
 
     @property
     def all_energies(self):
