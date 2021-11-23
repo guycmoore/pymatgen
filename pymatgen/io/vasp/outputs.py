@@ -6,6 +6,7 @@
 Classes for reading/manipulating/writing VASP ouput files.
 """
 
+import datetime
 import glob
 import itertools
 import json
@@ -15,11 +16,10 @@ import os
 import re
 import warnings
 import xml.etree.cElementTree as ET
-from io import StringIO
 from collections import defaultdict
-from typing import Optional, Tuple, List, Union, DefaultDict
+from io import StringIO
 from pathlib import Path
-import datetime
+from typing import DefaultDict, List, Optional, Tuple, Union
 
 import numpy as np
 from monty.dev import deprecated
@@ -447,7 +447,7 @@ class Vasprun(MSONable):
                             # "current-current" in OUTCAR
                             self.dielectric_data["velocity"] = self._parse_diel(elem)
                         else:
-                            raise NotImplementedError("This vasprun.xml has >2 unlabelled dielectric " "functions")
+                            raise NotImplementedError("This vasprun.xml has >2 unlabelled dielectric functions")
                     else:
                         comment = elem.attrib["comment"]
                         # VASP 6+ has labels for the density and current
@@ -480,7 +480,7 @@ class Vasprun(MSONable):
             if self.exception_on_bad_xml:
                 raise ex
             warnings.warn(
-                "XML is malformed. Parsing has stopped but partial data" "is available.",
+                "XML is malformed. Parsing has stopped but partial data is available.",
                 UserWarning,
             )
         self.ionic_steps = ionic_steps
@@ -664,7 +664,7 @@ class Vasprun(MSONable):
             return {symbols[i]: us[i] - js[i] for i in range(len(symbols))}
         if sum(us) == 0 and sum(js) == 0:
             return {}
-        raise VaspParserError("Length of U value parameters and atomic " "symbols are mismatched")
+        raise VaspParserError("Length of U value parameters and atomic symbols are mismatched")
 
     @property
     def run_type(self):
@@ -824,17 +824,18 @@ class Vasprun(MSONable):
                 determine the appropriate KPOINTS file by substituting the
                 filename of the vasprun.xml with KPOINTS.
                 The latter is the default behavior.
-            efermi: The Fermi energy associated with the bandstructure, in eV. By default (None),
-                uses the value reported by VASP in vasprun.xml. To manually set the Fermi energy,
-                pass a float. Pass 'smart' to use the `calculate_efermi()` method, which calculates
-                the Fermi level based on band occupancies. This algorithm works by checking whether
-                the Fermi level reported by VASP crosses a band. If it does, and if the bandgap is
-                nonzero, the Fermi level is placed in the center of the bandgap. Otherwise, the
-                value is identical to the value reported by VASP.
+            efermi: The Fermi energy associated with the bandstructure, in eV. By
+                default (None), uses the value reported by VASP in vasprun.xml. To
+                manually set the Fermi energy, pass a float. Pass 'smart' to use the
+                `calculate_efermi()` method, which calculates the Fermi level by first
+                checking whether it lies within a small tolerance (by default 0.001 eV)
+                of a band edge) If it does, the Fermi level is placed in the center of
+                the bandgap. Otherwise, the value is identical to the value reported by
+                VASP.
             line_mode: Force the band structure to be considered as
                 a run along symmetry lines. (Default: False)
-            force_hybrid_mode: Makes it possible to read in self-consistent band structure calculations for
-                every type of functional. (Default: False)
+            force_hybrid_mode: Makes it possible to read in self-consistent band
+                structure calculations for every type of functional. (Default: False)
 
         Returns:
             a BandStructure object (or more specifically a
@@ -852,7 +853,7 @@ class Vasprun(MSONable):
             kpoints_filename = zpath(os.path.join(os.path.dirname(self.filename), "KPOINTS"))
         if kpoints_filename:
             if not os.path.exists(kpoints_filename) and line_mode is True:
-                raise VaspParserError("KPOINTS needed to obtain band structure " "along symmetry lines.")
+                raise VaspParserError("KPOINTS needed to obtain band structure along symmetry lines.")
 
         if efermi == "smart":
             efermi = self.calculate_efermi()
@@ -1000,39 +1001,47 @@ class Vasprun(MSONable):
             )
         return max(cbm - vbm, 0), cbm, vbm, vbm_kpoint == cbm_kpoint
 
-    def calculate_efermi(self):
+    def calculate_efermi(self, tol=0.001):
         """
-        Calculate the Fermi level based on band occupancies, as an alternative to
-        using the Fermi level reported directly by VASP. For a semiconductor,
-        the Fermi level will be put in the center of the gap. This algorithm works
-        by checking whether the Fermi level reported by VASP crosses a band. If it does,
-        and if the bandgap is nonzero, place the Fermi level in the middle of the
-        bandgap.
-        """
-        # finding the Fermi level is quite painful, as VASP can sometimes put it slightly
-        # inside a band
-        fermi_crosses_band = False
-        for spin_eigenvalues in self.eigenvalues.values():
-            # drop weights and set shape nbands, nkpoints
-            spin_eigenvalues = spin_eigenvalues[:, :, 0].transpose(1, 0)
-            eigs_below = np.any(spin_eigenvalues < self.efermi, axis=1)
-            eigs_above = np.any(spin_eigenvalues > self.efermi, axis=1)
-            if np.any(eigs_above & eigs_below):
-                fermi_crosses_band = True
-        # if the Fermi level crosses a band, the eigenvalue band properties is a more
-        # reliable way to check whether this is a real effect
-        bandgap, cbm, vbm, _ = self.eigenvalue_band_properties
-        if not fermi_crosses_band:
-            # safe to use VASP fermi level
-            efermi = self.efermi
-        elif fermi_crosses_band and bandgap == 0:
-            # it is actually a metal
-            efermi = self.efermi
-        else:
-            # Set Fermi level half way between valence and conduction bands
-            efermi = (cbm + vbm) / 2
+        Calculate the Fermi level using a robust algorithm.
 
-        return efermi
+        Sometimes VASP can put the Fermi level just inside of a band due to issues in
+        the way band occupancies are handled. This algorithm tries to detect and correct
+        for this bug.
+
+        Slightly more details are provided here: https://www.vasp.at/forum/viewtopic.php?f=4&t=17981
+        """
+        # drop weights and set shape nbands, nkpoints
+        all_eigs = np.concatenate([eigs[:, :, 0].transpose(1, 0) for eigs in self.eigenvalues.values()])
+
+        def crosses_band(fermi):
+            eigs_below = np.any(all_eigs < fermi, axis=1)
+            eigs_above = np.any(all_eigs > fermi, axis=1)
+            return np.any(eigs_above & eigs_below)
+
+        def get_vbm_cbm(fermi):
+            return np.max(all_eigs[all_eigs < fermi]), np.min(all_eigs[all_eigs > fermi])
+
+        if not crosses_band(self.efermi):
+            # Fermi doesn't cross a band; safe to use VASP fermi level
+            return self.efermi
+
+        # if the Fermi level crosses a band, check if we are very close to band gap;
+        # if so, then likely this is a VASP tetrahedron bug
+        if not crosses_band(self.efermi + tol):
+            # efermi placed slightly in the valence band
+            # set Fermi level half way between valence and conduction bands
+            vbm, cbm = get_vbm_cbm(self.efermi + tol)
+            return (cbm + vbm) / 2
+
+        if not crosses_band(self.efermi - tol):
+            # efermi placed slightly in the conduction band
+            # set Fermi level half way between valence and conduction bands
+            vbm, cbm = get_vbm_cbm(self.efermi - tol)
+            return (cbm + vbm) / 2
+
+        # it is actually a metal
+        return self.efermi
 
     def get_potcars(self, path):
         """
@@ -1684,30 +1693,72 @@ class Outcar:
         "User time (sec)".
 
     .. attribute:: elastic_tensor
+
         Total elastic moduli (Kbar) is given in a 6x6 array matrix.
 
     .. attribute:: drift
+
         Total drift for each step in eV/Atom
 
     .. attribute:: ngf
+
         Dimensions for the Augementation grid
 
     .. attribute: sampling_radii
+
         Size of the sampling radii in VASP for the test charges for
         the electrostatic potential at each atom. Total array size is the number
         of elements present in the calculation
 
     .. attribute: electrostatic_potential
+
         Average electrostatic potential at each atomic position in order
         of the atoms in POSCAR.
 
     ..attribute: final_energy_contribs
+
         Individual contributions to the total final energy as a dictionary.
         Include contirbutions from keys, e.g.:
         {'DENC': -505778.5184347, 'EATOM': 15561.06492564, 'EBANDS': -804.53201231,
         'EENTRO': -0.08932659, 'EXHF': 0.0, 'Ediel_sol': 0.0,
         'PAW double counting': 664.6726974100002, 'PSCENC': 742.48691646,
         'TEWEN': 489742.86847338, 'XCENC': -169.64189814}
+
+    .. attribute:: efermi
+
+        Fermi energy
+
+    .. attribute:: filename
+
+        Filename
+
+     .. attribute:: final_energy
+
+        Final (total) energy
+
+    .. attribute:: has_onsite_density_matrices
+
+        Boolean for if onsite density matrices have been set
+
+    .. attribute:: lcalcpol
+
+        If LCALCPOL has been set
+
+    .. attribute:: lepsilon
+
+        If LEPSILON has been set
+
+    .. attribute:: nelect
+
+        Returns the number of electrons in the calculation
+
+    .. attribute:: spin
+
+        If spin-polarization was enabled via ISPIN
+
+    .. attribute:: total_mag
+
+        Total magnetization (in terms of the number of unpaired electrons)
 
     One can then call a specific reader depending on the type of run being
     performed. These are currently: read_igpar(), read_lepsilon() and
@@ -3397,7 +3448,7 @@ class VolumetricData(MSONable):
         non-spin-polarized run would have Spin.up data == Spin.down data.
         """
         if not self._spin_data:
-            spin_data = dict()
+            spin_data = {}
             spin_data[Spin.up] = 0.5 * (self.data["total"] + self.data.get("diff", 0))
             spin_data[Spin.down] = 0.5 * (self.data["total"] - self.data.get("diff", 0))
             self._spin_data = spin_data
@@ -3446,7 +3497,7 @@ class VolumetricData(MSONable):
             VolumetricData corresponding to self + scale_factor * other.
         """
         if self.structure != other.structure:
-            warnings.warn("Structures are different. Make sure you know what " "you are doing...")
+            warnings.warn("Structures are different. Make sure you know what you are doing...")
         if self.data.keys() != other.data.keys():
             raise ValueError("Data have different keys! Maybe one is spin-" "polarized and the other is not?")
 
@@ -5136,9 +5187,7 @@ class Wavecar:
             a pymatgen.io.vasp.outputs.Chgcar object
         """
         if phase and not np.all(self.kpoints[kpoint] == 0.0):
-            warnings.warn(
-                "phase == True should only be used for the Gamma " "kpoint! I hope you know what you're doing!"
-            )
+            warnings.warn("phase == True should only be used for the Gamma kpoint! I hope you know what you're doing!")
 
         # scaling of ng for the fft grid, need to restore value at the end
         temp_ng = self.ng

@@ -222,7 +222,7 @@ class VaspInputSet(MSONable, metaclass=abc.ABCMeta):
 
         if zip_output:
             filename = self.__class__.__name__ + ".zip"
-            with ZipFile(filename, "w") as zip:
+            with ZipFile(os.path.join(output_dir, filename), "w") as zip:
                 for file in [
                     "INCAR",
                     "POSCAR",
@@ -232,9 +232,12 @@ class VaspInputSet(MSONable, metaclass=abc.ABCMeta):
                     cifname,
                 ]:
                     try:
-                        zip.write(file)
-                        os.remove(file)
+                        zip.write(os.path.join(output_dir, file), arcname=file)
                     except FileNotFoundError:
+                        pass
+                    try:
+                        os.remove(os.path.join(output_dir, file))
+                    except (FileNotFoundError, PermissionError, IsADirectoryError):
                         pass
 
     def as_dict(self, verbosity=2):
@@ -279,12 +282,12 @@ class DictSet(VaspInputSet):
     structure and the configuration settings. The order in which the magmom is
     determined is as follows:
 
-    1. If the site itself has a magmom setting, that is used.
-    2. If the species on the site has a spin setting, that is used.
+    1. If the site itself has a magmom setting (`site.magmom`), that is used.
+    2. If the species on the site has a spin setting (`site.spin`), that is used.
     3. If the species itself has a particular setting in the config file, that
        is used, e.g., Mn3+ may have a different magmom than Mn4+.
     4. Lastly, the element symbol itself is checked in the config file. If
-       there are no settings, VASP's default of 0.6 is used.
+       there are no settings, a default value of 0.6 is used.
     """
 
     def __init__(
@@ -428,7 +431,7 @@ class DictSet(VaspInputSet):
             )
         if potcar_functional:
             warnings.warn(
-                "'potcar_functional' argument is deprecated. Use " "'user_potcar_functional' instead.",
+                "'potcar_functional' argument is deprecated. Use 'user_potcar_functional' instead.",
                 FutureWarning,
             )
             self.potcar_functional = potcar_functional
@@ -506,18 +509,32 @@ class DictSet(VaspInputSet):
                     elif hasattr(site.specie, "spin"):
                         mag.append(site.specie.spin)
                     elif str(site.specie) in v:
+                        if not isinstance(v, dict):
+                            raise TypeError(
+                                "MAGMOM must be supplied in a dictionary format, e.g. {'Fe': 5}. "
+                                "If you want site-specific magnetic moments, set them in the site.magmom properties "
+                                "of the site objects in the structure"
+                            )
                         if site.specie.symbol == "Co":
                             warnings.warn(
-                                "Co without oxidation state is initialized low spin by default. If this is "
-                                "not desired, please set the spin on the magmom on the site directly to "
+                                "Co without an oxidation state is initialized as low spin by default in Pymatgen "
+                                "(unless you have provided a MAGMOM dictionary specifying otherwise). If this default "
+                                "behavior is not desired, please set the spin on the magmom on the site directly to "
                                 "ensure correct initialization"
                             )
                         mag.append(v.get(str(site.specie)))
                     else:
+                        if not isinstance(v, dict):
+                            raise TypeError(
+                                "MAGMOM must be supplied in a dictionary format, e.g. {'Fe': 5}. "
+                                "If you want site-specific magnetic moments, set them in the site.magmom properties "
+                                "of the site objects in the structure"
+                            )
                         if site.specie.symbol == "Co":
                             warnings.warn(
-                                "Co without oxidation state is initialized low spin by default. If this is "
-                                "not desired, please set the spin on the magmom on the site directly to "
+                                "Co without an oxidation state is initialized as low spin by default in Pymatgen "
+                                "(unless you have provided a MAGMOM dictionary specifying otherwise). If this default "
+                                "behavior is not desired, please set the spin on the magmom on the site directly to "
                                 "ensure correct initialization"
                             )
                         mag.append(v.get(site.specie.symbol, 0.6))
@@ -544,28 +561,49 @@ class DictSet(VaspInputSet):
             else:
                 incar[k] = v
         has_u = hubbard_u and sum(incar["LDAUU"]) > 0
-        if has_u:
-            # modify LMAXMIX if LSDA+U and you have d or f electrons
-            # note that if the user explicitly sets LMAXMIX in settings it will
-            # override this logic.
-            if "LMAXMIX" not in settings.keys():
-                # contains f-electrons
-                if any(el.Z > 56 for el in structure.composition):
-                    incar["LMAXMIX"] = 6
-                # contains d-electrons
-                elif any(el.Z > 20 for el in structure.composition):
-                    incar["LMAXMIX"] = 4
-        else:
+        if not has_u:
             for key in list(incar.keys()):
                 if key.startswith("LDAU"):
                     del incar[key]
 
+        # Modify LMAXMIX if you have d or f electrons present.
+        # Note that if the user explicitly sets LMAXMIX in settings it will
+        # override this logic.
+        # Previously, this was only set if Hubbard U was enabled as per the
+        # VASP manual but following an investigation it was determined that
+        # this would lead to a significant difference between SCF -> NonSCF
+        # even without Hubbard U enabled. Thanks to Andrew Rosen for
+        # investigating and reporting.
+        if "LMAXMIX" not in settings.keys():
+            # contains f-electrons
+            if any(el.Z > 56 for el in structure.composition):
+                incar["LMAXMIX"] = 6
+            # contains d-electrons
+            elif any(el.Z > 20 for el in structure.composition):
+                incar["LMAXMIX"] = 4
+
         if self.constrain_total_magmom:
             nupdown = sum([mag if abs(mag) > 0.6 else 0 for mag in incar["MAGMOM"]])
+            if nupdown != round(nupdown):
+                warnings.warn(
+                    "constrain_total_magmom was set to True, but the sum of MAGMOM "
+                    "values is not an integer. NUPDOWN is meant to set the spin "
+                    "multiplet and should typically be an integer. You are likely "
+                    "better off changing the values of MAGMOM or simply setting "
+                    "NUPDOWN directly in your INCAR settings.",
+                    UserWarning,
+                )
             incar["NUPDOWN"] = nupdown
 
         if self.use_structure_charge:
             incar["NELECT"] = self.nelect
+
+        # Check that ALGO is appropriate
+        if incar.get("LHFCALC", False) is True and incar.get("ALGO", "Normal") not in ["Normal", "All", "Damped"]:
+            warnings.warn(
+                "Hybrid functionals only support Algo = All, Damped, or Normal.",
+                BadInputSetWarning,
+            )
 
         # Ensure adequate number of KPOINTS are present for the tetrahedron
         # method (ISMEAR=-5). If KSPACING is in the INCAR file the number
@@ -982,7 +1020,7 @@ class MPScanRelaxSet(DictSet):
         if self.vdw:
             if self.vdw != "rvv10":
                 warnings.warn(
-                    "Use of van der waals functionals other than rVV10 " "with SCAN is not supported at this time. "
+                    "Use of van der waals functionals other than rVV10 with SCAN is not supported at this time. "
                 )
                 # delete any vdw parameters that may have been added to the INCAR
                 vdw_par = loadfn(str(MODULE_DIR / "vdW_parameters.yaml"))
@@ -1556,10 +1594,10 @@ class MPNonSCFSet(MPRelaxSet):
         self.small_gap_multiply = small_gap_multiply
 
         if self.mode.lower() not in ["line", "uniform", "boltztrap"]:
-            raise ValueError("Supported modes for NonSCF runs are 'Line', " "'Uniform' and 'Boltztrap!")
+            raise ValueError("Supported modes for NonSCF runs are 'Line', 'Uniform' and 'Boltztrap!")
 
         if (self.mode.lower() != "uniform" or nedos < 2000) and optics:
-            warnings.warn("It is recommended to use Uniform mode with a high " "NEDOS for optics calculations.")
+            warnings.warn("It is recommended to use Uniform mode with a high NEDOS for optics calculations.")
 
     @property
     def incar(self) -> Incar:
@@ -1838,7 +1876,7 @@ class MPSOCSet(MPStaticSet):
                     site_properties={"magmom": [[0, 0, site.magmom] for site in self._structure]}
                 )
         else:
-            raise ValueError("Neither the previous structure has magmom " "property nor magmom provided")
+            raise ValueError("Neither the previous structure has magmom property nor magmom provided")
 
         nbands = int(np.ceil(vasprun.parameters["NBANDS"] * self.nbands_factor))
         self.prev_incar.update({"NBANDS": nbands})
@@ -2912,7 +2950,7 @@ def get_structure_from_prev_run(vasprun, outcar=None):
             if len(l_val) == len(structure):
                 site_properties.update({k.lower(): l_val})
             else:
-                raise ValueError("length of list {} not the same as" "structure".format(l_val))
+                raise ValueError("length of list {} not the same as structure".format(l_val))
 
     return structure.copy(site_properties=site_properties)
 

@@ -110,7 +110,7 @@ class MITMPRelaxSetTest(PymatgenTest):
         self.assertEqual(s_sorted[0].specie.symbol, "Mn")
 
     def test_potcar_symbols(self):
-        coords = list()
+        coords = []
         coords.append([0, 0, 0])
         coords.append([0.75, 0.5, 0.75])
         coords.append([0.75, 0.25, 0.75])
@@ -181,7 +181,7 @@ class MITMPRelaxSetTest(PymatgenTest):
         self.assertAlmostEqual(incar["EDIFF"], 1e-5)
 
         si = 14
-        coords = list()
+        coords = []
         coords.append(np.array([0, 0, 0]))
         coords.append(np.array([0.75, 0.5, 0.75]))
 
@@ -199,7 +199,7 @@ class MITMPRelaxSetTest(PymatgenTest):
         incar = MPRelaxSet(struct).incar
         self.assertNotIn("LDAU", incar)
 
-        coords = list()
+        coords = []
         coords.append([0, 0, 0])
         coords.append([0.75, 0.5, 0.75])
         lattice = Lattice(
@@ -252,7 +252,7 @@ class MITMPRelaxSetTest(PymatgenTest):
 
         # sulfide vs sulfate test
 
-        coords = list()
+        coords = []
         coords.append([0, 0, 0])
         coords.append([0.75, 0.5, 0.75])
         coords.append([0.25, 0.5, 0])
@@ -306,7 +306,7 @@ class MITMPRelaxSetTest(PymatgenTest):
 
         # Test that NELECT is updated when a charge is present
         si = 14
-        coords = list()
+        coords = []
         coords.append(np.array([0, 0, 0]))
         coords.append(np.array([0.75, 0.5, 0.75]))
 
@@ -328,7 +328,7 @@ class MITMPRelaxSetTest(PymatgenTest):
         mpr = MPRelaxSet(struct, use_structure_charge=False)
         self.assertFalse(
             "NELECT" in mpr.incar.keys(),
-            "NELECT should not be set when " "use_structure_charge is False",
+            "NELECT should not be set when use_structure_charge is False",
         )
 
         struct = Structure(latt, ["Co", "O"], coords)
@@ -413,6 +413,9 @@ class MITMPRelaxSetTest(PymatgenTest):
         p = MPRelaxSet(self.structure, user_incar_settings={"LDAU": False, "EDIFF": 1e-10})
         self.assertNotIn("LDAUU", p.incar)
         self.assertEqual(p.incar["EDIFF"], 1e-10)
+        # after testing, we have determined LMAXMIX should still be 4 for d-block
+        # even if U is turned off (thanks Andrew Rosen for reporting)
+        self.assertEqual(p.incar["LMAXMIX"], 4)
 
     def test_write_input(self):
         self.mitset.write_input(".", make_dir_if_not_present=True)
@@ -474,6 +477,27 @@ class MITMPRelaxSetTest(PymatgenTest):
         self.assertTrue("argument must be a string" in str(context.exception))
         vis = MPRelaxSet(struct, user_potcar_settings={"Fe": "Fe"}, validate_magmom=True)
         self.assertEqual(vis.get_vasp_input()["INCAR"]["MAGMOM"], [1.0] * len(struct))
+
+        # Test the behavior of constraining the net magnetic moment with a non-integer
+        struct = self.structure.copy()
+        with pytest.warns(UserWarning, match=r"constrain_total_magmom"):
+            vis = MPRelaxSet(
+                struct,
+                user_incar_settings={"MAGMOM": {"Fe": 5.1}},
+                user_potcar_settings={"Fe": "Fe"},
+                constrain_total_magmom=True,
+            )
+            vis.incar.items()
+
+        # Test the behavior of passing in the wrong type of MAGMOM to user_incar_settings
+        struct = self.structure.copy()
+        with pytest.raises(TypeError, match=r"MAGMOM must be supplied"):
+            vis = MPRelaxSet(
+                struct,
+                user_incar_settings={"MAGMOM": [5.0, 5.0]},
+                user_potcar_settings={"Fe": "Fe"},
+            )
+            vis.incar.items()
 
 
 class MPStaticSetTest(PymatgenTest):
@@ -575,7 +599,8 @@ class MPStaticSetTest(PymatgenTest):
         self.assertTrue(os.path.exists("MPStaticSet.zip"))
         with ZipFile("MPStaticSet.zip", "r") as zip:
             contents = zip.namelist()
-            self.assertSetEqual(set(contents), {"INCAR", "POSCAR", "POTCAR.spec", "KPOINTS"})
+            print(contents)
+            self.assertTrue(set(contents).issuperset({"INCAR", "POSCAR", "POTCAR.spec", "KPOINTS"}))
             spec = zip.open("POTCAR.spec", "r").read().decode()
             self.assertEqual(spec, "Si")
 
@@ -1177,6 +1202,10 @@ class MPHSEBSTest(PymatgenTest):
         self.assertEqual(vis.incar["NSW"], 0)
         self.assertEqual(vis.incar["ISYM"], 3)
         self.assertEqual(len(vis.kpoints.kpts), 180)
+
+        with pytest.warns(BadInputSetWarning, match=r"Hybrid functionals"):
+            vis = MPHSEBSSet(PymatgenTest.get_structure("Li2O"), user_incar_settings={"ALGO": "Fast"})
+            vis.incar.items()
 
     def test_override_from_prev_calc(self):
         prev_run = self.TEST_FILES_DIR / "static_silicon"
