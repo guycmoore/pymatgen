@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -21,6 +20,8 @@ import math
 from math import cos
 from math import sin
 from fractions import Fraction
+from math import cos, sin
+import warnings
 
 import numpy as np
 
@@ -476,10 +477,10 @@ class SpacegroupAnalyzer:
         latt = struct.lattice
         latt_type = self.get_lattice_type()
         sorted_lengths = sorted(latt.abc)
-        sorted_dic = sorted([{'vec': latt.matrix[i],
-                              'length': latt.abc[i],
-                              'orig_index': i} for i in [0, 1, 2]],
-                            key=lambda k: k['length'])
+        sorted_dic = sorted(
+            ({"vec": latt.matrix[i], "length": latt.abc[i], "orig_index": i} for i in [0, 1, 2]),
+            key=lambda k: k["length"],
+        )
 
         if latt_type in ("orthorhombic", "cubic"):
             # you want to keep the c axis where it is
@@ -488,10 +489,10 @@ class SpacegroupAnalyzer:
             if self.get_space_group_symbol().startswith("C"):
                 transf[2] = [0, 0, 1]
                 a, b = sorted(latt.abc[:2])
-                sorted_dic = sorted([{'vec': latt.matrix[i],
-                                      'length': latt.abc[i],
-                                      'orig_index': i} for i in [0, 1]],
-                                    key=lambda k: k['length'])
+                sorted_dic = sorted(
+                    ({"vec": latt.matrix[i], "length": latt.abc[i], "orig_index": i} for i in [0, 1]),
+                    key=lambda k: k["length"],
+                )
                 for i in range(2):
                     transf[i][sorted_dic[i]['orig_index']] = 1
                 c = latt.abc[2]
@@ -499,10 +500,10 @@ class SpacegroupAnalyzer:
                     "A"):  # change to C-centering to match Setyawan/Curtarolo convention
                 transf[2] = [1, 0, 0]
                 a, b = sorted(latt.abc[1:])
-                sorted_dic = sorted([{'vec': latt.matrix[i],
-                                      'length': latt.abc[i],
-                                      'orig_index': i} for i in [1, 2]],
-                                    key=lambda k: k['length'])
+                sorted_dic = sorted(
+                    ({"vec": latt.matrix[i], "length": latt.abc[i], "orig_index": i} for i in [1, 2]),
+                    key=lambda k: k["length"],
+                )
                 for i in range(2):
                     transf[i][sorted_dic[i]['orig_index']] = 1
                 c = latt.abc[0]
@@ -550,12 +551,12 @@ class SpacegroupAnalyzer:
             if self.get_space_group_operations().int_symbol.startswith("C"):
                 transf = np.zeros(shape=(3, 3))
                 transf[2] = [0, 0, 1]
-                sorted_dic = sorted([{'vec': latt.matrix[i],
-                                      'length': latt.abc[i],
-                                      'orig_index': i} for i in [0, 1]],
-                                    key=lambda k: k['length'])
-                a = sorted_dic[0]['length']
-                b = sorted_dic[1]['length']
+                sorted_dic = sorted(
+                    ({"vec": latt.matrix[i], "length": latt.abc[i], "orig_index": i} for i in [0, 1]),
+                    key=lambda k: k["length"],
+                )
+                a = sorted_dic[0]["length"]
+                b = sorted_dic[1]["length"]
                 c = latt.abc[2]
                 new_matrix = None
                 for t in itertools.permutations(list(range(2)), 2):
@@ -661,7 +662,7 @@ class SpacegroupAnalyzer:
             latt = struct.lattice
 
             a, b, c = latt.lengths
-            alpha, beta, gamma = [math.pi * i / 180 for i in latt.angles]
+            alpha, beta, gamma = (math.pi * i / 180 for i in latt.angles)
             new_matrix = None
             test_matrix = [[a, 0, 0],
                            [b * cos(gamma), b * sin(gamma), 0.0],
@@ -781,7 +782,7 @@ class SpacegroupAnalyzer:
                     weights.append(mapping.count(mapping[i]))
                     break
         if (len(mapped) != len(set(mapping))) or (not all(v == 1 for v in mapped.values())):
-            raise ValueError("Unable to find 1:1 corresponding between input " "kpoints and irreducible grid!")
+            raise ValueError("Unable to find 1:1 corresponding between input kpoints and irreducible grid!")
         return [w / sum(weights) for w in weights]
 
     def is_laue(self):
@@ -822,8 +823,7 @@ class PointGroupAnalyzer:
     """
     inversion_op = SymmOp.inversion()
 
-    def __init__(self, mol, tolerance=0.3, eigen_tolerance=0.01,
-                 matrix_tol=0.1):
+    def __init__(self, mol, tolerance=0.3, eigen_tolerance=0.01, matrix_tolerance=0.1):
         """
         The default settings are usually sufficient.
 
@@ -833,14 +833,14 @@ class PointGroupAnalyzer:
                 symmetrically equivalent. Defaults to 0.3 Angstrom.
             eigen_tolerance (float): Tolerance to compare eigen values of
                 the inertia tensor. Defaults to 0.01.
-            matrix_tol (float): Tolerance used to generate the full set of
+            matrix_tolerance (float): Tolerance used to generate the full set of
                 symmetry operations of the point group.
         """
         self.mol = mol
         self.centered_mol = mol.get_centered_molecule()
         self.tol = tolerance
         self.eig_tol = eigen_tolerance
-        self.mat_tol = matrix_tol
+        self.mat_tol = matrix_tolerance
         self._analyze()
         if self.sch_symbol in ["C1v", "C1h"]:
             self.sch_symbol = "Cs"
@@ -962,16 +962,15 @@ class PointGroupAnalyzer:
         Handles cyclic group molecules.
         """
         main_axis, rot = max(self.rot_sym, key=lambda v: v[1])
-        self.sch_symbol = "C{}".format(rot)
+        self.sch_symbol = f"C{rot}"
         mirror_type = self._find_mirror(main_axis)
         if mirror_type == "h":
             self.sch_symbol += "h"
         elif mirror_type == "v":
             self.sch_symbol += "v"
         elif mirror_type == "":
-            if self.is_valid_op(SymmOp.rotoreflection(main_axis,
-                                                      angle=180 / rot)):
-                self.sch_symbol = "S{}".format(2 * rot)
+            if self.is_valid_op(SymmOp.rotoreflection(main_axis, angle=180 / rot)):
+                self.sch_symbol = f"S{2 * rot}"
 
     def _proc_dihedral(self):
         """
@@ -979,7 +978,7 @@ class PointGroupAnalyzer:
         and a main axis.
         """
         main_axis, rot = max(self.rot_sym, key=lambda v: v[1])
-        self.sch_symbol = "D{}".format(rot)
+        self.sch_symbol = f"D{rot}"
         mirror_type = self._find_mirror(main_axis)
         if mirror_type == "h":
             self.sch_symbol += "h"
@@ -1288,9 +1287,8 @@ class PointGroupAnalyzer:
         UNIT = np.eye(3)
 
         def all_equivalent_atoms_of_i(i, eq_sets, ops):
-            """WORKS INPLACE on operations
-            """
-            visited = set([i])
+            """WORKS INPLACE on operations"""
+            visited = {i}
             tmp_eq_sets = {j: (eq_sets[j] - visited) for j in eq_sets[i]}
 
             while tmp_eq_sets:
@@ -1518,6 +1516,11 @@ def generate_full_symmops(symmops, tol):
             d = np.abs(full - op) < tol
             if not np.any(np.all(np.all(d, axis=2), axis=1)):
                 full.append(op)
+            if len(full) > 1000:
+                warnings.warn(
+                    f"{len(full)} matrices have been generated. The tol may be too small. Please terminate"
+                    f" and rerun with a different tolerance."
+                )
 
     d = np.abs(full - UNIT) < tol
     if not np.any(np.all(np.all(d, axis=2), axis=1)):
@@ -1581,7 +1584,7 @@ class SpacegroupOperations(list):
         return False
 
     def __str__(self):
-        return "{} ({}) spacegroup".format(self.int_symbol, self.int_number)
+        return f"{self.int_symbol} ({self.int_number}) spacegroup"
 
 
 class PointGroupOperations(list):
