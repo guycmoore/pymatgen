@@ -6,19 +6,25 @@
 import ast
 import json
 import re
+import sys
 import warnings
 from collections import Counter
 from enum import Enum
 from io import open
 from itertools import combinations, product
 from pathlib import Path
-from typing import Callable, Optional, Union, Dict, Tuple, List
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from monty.json import MSONable
 
 from pymatgen.core.units import SUPPORTED_UNIT_NAMES, FloatWithUnit, Length, Mass, Unit
-from pymatgen.util.string import formula_double_format, Stringify
+from pymatgen.util.string import Stringify, formula_double_format
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 # Loads element data from json file
 with open(str(Path(__file__).absolute().parent / "periodic_table.json"), "rt") as f:
@@ -50,110 +56,9 @@ class ElementBase(Enum):
 
             Element symbol
 
-        .. attribute:: X
-
-            Pauling electronegativity. Elements without an electronegativity
-            number are assigned a value of zero by default.
-
-        .. attribute:: number
-
-            Alternative attribute for atomic number
-
-        .. attribute:: max_oxidation_state
-
-            Maximum oxidation state for element
-
-        .. attribute:: min_oxidation_state
-
-            Minimum oxidation state for element
-
-        .. attribute:: oxidation_states
-
-            Tuple of all known oxidation states
-
-        .. attribute:: common_oxidation_states
-
-            Tuple of all common oxidation states
-
-        .. attribute:: full_electronic_structure
-
-            Full electronic structure as tuple.
-            E.g., The electronic structure for Fe is represented as:
-            [(1, "s", 2), (2, "s", 2), (2, "p", 6), (3, "s", 2), (3, "p", 6),
-            (3, "d", 6), (4, "s", 2)]
-
-        .. attribute:: row
-
-            Returns the periodic table row of the element.
-
-        .. attribute:: group
-
-            Returns the periodic table group of the element.
-
-        .. attribute:: block
-
-            Return the block character "s,p,d,f"
-
-        .. attribute:: is_noble_gas
-
-            True if element is noble gas.
-
-        .. attribute:: is_transition_metal
-
-            True if element is a transition metal.
-
-        .. attribute:: is_post_transition_metal
-
-            True if element is a post transition metal.
-
-        .. attribute:: is_rare_earth_metal
-
-            True if element is a rare earth metal.
-
-        .. attribute:: is_metalloid
-
-            True if element is a metalloid.
-
-        .. attribute:: is_alkali
-
-            True if element is an alkali metal.
-
-        .. attribute:: is_alkaline
-
-            True if element is an alkaline earth metal (group II).
-
-        .. attribute:: is_halogen
-
-            True if element is a halogen.
-
-        .. attribute:: is_lanthanoid
-
-            True if element is a lanthanoid.
-
-        .. attribute:: is_actinoid
-
-            True if element is a actinoid.
-
-        .. attribute:: iupac_ordering
-
-            Ordering according to Table VI of "Nomenclature of Inorganic Chemistry
-            (IUPAC Recommendations 2005)". This ordering effectively follows the
-            groups and rows of the periodic table, except the Lanthanides, Actanides
-            and hydrogen.
-
         .. attribute:: long_name
 
            Long name for element. E.g., "Hydrogen".
-
-        .. attribute:: atomic_mass
-
-            Atomic mass for the element.
-
-        .. attribute:: atomic_radius
-
-            Atomic radius for the element. This is the empirical value. Data is
-            obtained from
-            http://en.wikipedia.org/wiki/Atomic_radii_of_the_elements_(data_page).
 
         .. attribute:: atomic_radius_calculated
 
@@ -164,8 +69,14 @@ class ElementBase(Enum):
         .. attribute:: van_der_waals_radius
 
             Van der Waals radius for the element. This is the empirical
-            value. Data is obtained from
-            http://en.wikipedia.org/wiki/Atomic_radii_of_the_elements_(data_page).
+            value determined from critical reviews of X-ray diffraction, gas kinetic
+            collision cross-section, and other experimental data by Bondi and later
+            workers. The uncertainty in these values is on the order of 0.1 Å.
+
+            Data are obtained from
+
+            "Atomic Radii of the Elements" in CRC Handbook of Chemistry and Physics,
+                91st Ed.; Haynes, W.M., Ed.; CRC Press: Boca Raton, FL, 2010.
 
         .. attribute:: mendeleev_no
 
@@ -268,25 +179,15 @@ class ElementBase(Enum):
 
             Coefficient of linear thermal expansion
 
-        .. attribute:: average_ionic_radius
+        .. attribute:: ground_level
 
-            Average ionic radius for element in ang. The average is taken over all
-            oxidation states of the element for which data is present.
+            Ground level for element
 
-        .. attribute:: average_cationic_radius
+        .. attribute:: ionization_energies
 
-            Average cationic radius for element in ang. The average is taken over all
-            positive oxidation states of the element for which data is present.
-
-        .. attribute:: average_anionic_radius
-
-            Average ionic radius for element in ang. The average is taken over all
-            negative oxidation states of the element for which data is present.
-
-        .. attribute:: ionic_radii
-
-            All ionic radii of the element as a dict of
-            {oxidation state: ionic radii}. Radii are given in ang.
+            List of ionization energies. First value is the first ionization energy, second is the second ionization
+            energy, etc. Note that this is zero-based indexing! So Element.ionization_energies[0] refer to the 1st
+            ionization energy. Values are from the NIST Atomic Spectra Database. Missing values are None.
         """
         self.symbol = "%s" % symbol
         d = _pt_data[symbol]
@@ -360,12 +261,14 @@ class ElementBase(Enum):
             "coefficient_of_linear_thermal_expansion",
             "ground_state_term_symbol",
             "valence",
+            "ground_level",
+            "ionization_energies",
         ]:
             kstr = item.capitalize().replace("_", " ")
             val = self._data.get(kstr, None)
             if str(val).startswith("no data"):
                 val = None
-            elif isinstance(val, dict):
+            elif isinstance(val, (list, dict)):
                 pass
             else:
                 try:
@@ -405,6 +308,20 @@ class ElementBase(Enum):
         Returns dict of data for element.
         """
         return self._data.copy()
+
+    @property
+    def ionization_energy(self) -> float:
+        """
+        First ionization energy of element.
+        """
+        return self._data["Ionization energies"][0]
+
+    @property
+    def electron_affinity(self) -> float:
+        """
+        First ionization energy of element.
+        """
+        return self._data["Electron affinity"]
 
     @property
     def electronic_structure(self) -> str:
@@ -485,18 +402,18 @@ class ElementBase(Enum):
     @property
     def oxidation_states(self) -> Tuple:
         """Tuple of all known oxidation states"""
-        return tuple(self._data.get("Oxidation states", list()))
+        return tuple(self._data.get("Oxidation states", []))
 
     @property
     def common_oxidation_states(self) -> Tuple:
         """Tuple of common oxidation states"""
-        return tuple(self._data.get("Common oxidation states", list()))
+        return tuple(self._data.get("Common oxidation states", []))
 
     @property
     def icsd_oxidation_states(self) -> Tuple:
         """Tuple of all oxidation states with at least 10 instances in
         ICSD database AND at least 1% of entries for that element"""
-        return tuple(self._data.get("ICSD oxidation states", list()))
+        return tuple(self._data.get("ICSD oxidation states", []))
 
     @property
     def metallic_radius(self) -> float:
@@ -1089,8 +1006,8 @@ class Species(MSONable, Stringify):
     def __init__(
         self,
         symbol: str,
-        oxidation_state: float = 0.0,
-        properties: dict = None,
+        oxidation_state: Optional[float] = 0.0,
+        properties: Optional[dict] = None,
     ):
         """
         Initializes a Species.
@@ -1188,19 +1105,20 @@ class Species(MSONable, Stringify):
 
         if self._oxi_state in self.ionic_radii:
             return self.ionic_radii[self._oxi_state]
-        d = self._el.data
-        oxstr = str(int(self._oxi_state))
-        if oxstr in d.get("Ionic radii hs", {}):
-            warnings.warn("No default ionic radius for %s. Using hs data." % self)
-            return d["Ionic radii hs"][oxstr]
-        if oxstr in d.get("Ionic radii ls", {}):
-            warnings.warn("No default ionic radius for %s. Using ls data." % self)
-            return d["Ionic radii ls"][oxstr]
+        if self._oxi_state:
+            d = self._el.data
+            oxstr = str(int(self._oxi_state))
+            if oxstr in d.get("Ionic radii hs", {}):
+                warnings.warn("No default ionic radius for %s. Using hs data." % self)
+                return d["Ionic radii hs"][oxstr]
+            if oxstr in d.get("Ionic radii ls", {}):
+                warnings.warn("No default ionic radius for %s. Using ls data." % self)
+                return d["Ionic radii ls"][oxstr]
         warnings.warn("No ionic radius for {}!".format(self))
         return None
 
     @property
-    def oxi_state(self) -> float:
+    def oxi_state(self) -> Optional[float]:
         """
         Oxidation state of Species.
         """
@@ -1304,7 +1222,12 @@ class Species(MSONable, Stringify):
             raise ValueError("No quadrupole moment for isotope {}".format(isotope))
         return quad_mom.get(isotope, 0.0)
 
-    def get_shannon_radius(self, cn: str, spin: str = "", radius_type: str = "ionic") -> float:
+    def get_shannon_radius(
+        self,
+        cn: str,
+        spin: Literal["", "Low Spin", "High Spin"] = "",
+        radius_type: Literal["ionic", "crystal"] = "ionic",
+    ) -> float:
         """
         Get the local environment specific ionic radius for species.
 
@@ -1327,29 +1250,30 @@ class Species(MSONable, Stringify):
             k, data = list(radii.items())[0]  # type: ignore
             if k != spin:
                 warnings.warn(
-                    "Specified spin state of %s not consistent with database "
-                    "spin of %s. Only one spin data available, and "
-                    "that value is returned." % (spin, k)
+                    f"Specified spin state of {spin} not consistent with database "
+                    f"spin of {k}. Only one spin data available, and that value is returned."
                 )
         else:
             data = radii[spin]
         return data["%s_radius" % radius_type]
 
-    def get_crystal_field_spin(self, coordination: str = "oct", spin_config: str = "high") -> float:
+    def get_crystal_field_spin(
+        self, coordination: Literal["oct", "tet"] = "oct", spin_config: Literal["low", "high"] = "high"
+    ) -> float:
         """
         Calculate the crystal field spin based on coordination and spin
         configuration. Only works for transition metal species.
 
         Args:
-            coordination (str): Only oct and tet are supported at the moment.
-            spin_config (str): Supported keywords are "high" or "low".
+            coordination ("oct" | "tet"): Tetrahedron or octahedron crystal site coordination
+            spin_config ("low" | "high"): Whether the species is in a high or low spin state
 
         Returns:
             Crystal field spin in Bohr magneton.
 
         Raises:
             AttributeError if species is not a valid transition metal or has
-            an invalid oxidation state.
+                an invalid oxidation state.
             ValueError if invalid coordination or spin_config.
         """
         if coordination not in ("oct", "tet") or spin_config not in ("high", "low"):
@@ -1435,8 +1359,8 @@ class DummySpecies(Species):
     def __init__(
         self,
         symbol: str = "X",
-        oxidation_state: float = 0,
-        properties: dict = None,
+        oxidation_state: Optional[float] = 0,
+        properties: Optional[dict] = None,
     ):
         """
         Args:
@@ -1518,7 +1442,7 @@ class DummySpecies(Species):
         return self.symbol.__hash__()
 
     @property
-    def oxi_state(self) -> float:
+    def oxi_state(self) -> Optional[float]:
         """
         Oxidation state associated with DummySpecies
         """
@@ -1583,7 +1507,7 @@ class DummySpecies(Species):
             "oxidation_state": self._oxi_state,
         }
         if self._properties:
-            d["properties"] = self._properties
+            d["properties"] = self._properties  # type: ignore
         return d
 
     @classmethod

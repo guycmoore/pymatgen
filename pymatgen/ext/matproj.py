@@ -19,7 +19,7 @@ import platform
 import re
 import sys
 import warnings
-from collections import defaultdict
+from typing import List
 from enum import Enum, unique
 from time import sleep
 
@@ -27,8 +27,7 @@ import requests
 from monty.json import MontyDecoder, MontyEncoder
 from monty.serialization import dumpfn
 
-from pymatgen import SETTINGS, SETTINGS_FILE, yaml
-from pymatgen import __version__ as pmg_version
+from pymatgen.core import SETTINGS, SETTINGS_FILE, yaml
 from pymatgen.core.composition import Composition
 from pymatgen.core.periodic_table import Element
 from pymatgen.core.structure import Structure
@@ -37,6 +36,8 @@ from pymatgen.entries.computed_entries import ComputedEntry, ComputedStructureEn
 from pymatgen.entries.exp_entries import ExpEntry
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.util.sequence import PBar, get_chunks
+from pymatgen.core import __version__ as PMG_VERSION
+
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ class MPRester:
         self.session = requests.Session()
         self.session.headers = {"x-api-key": self.api_key}
         if include_user_agent:
-            pymatgen_info = "pymatgen/" + pmg_version
+            pymatgen_info = "pymatgen/" + PMG_VERSION
             python_info = "Python/{}.{}.{}".format(
                 sys.version_info.major, sys.version_info.minor, sys.version_info.micro
             )
@@ -183,13 +184,15 @@ class MPRester:
 
         if notify_db_version:
             db_version = self.get_database_version()
-            logger.info(f"Connection established to Materials Project database, version {db_version}.")
+            logger.debug(f"Connection established to Materials Project database, version {db_version}.")
 
             try:
                 with open(SETTINGS_FILE, "rt") as f:
                     d = yaml.safe_load(f)
             except IOError:
                 d = {}
+
+            d = d if d else {}
 
             if "MAPI_DB_VERSION" not in d:
                 d["MAPI_DB_VERSION"] = {"LOG": {}, "LAST_ACCESSED": None}
@@ -470,7 +473,7 @@ class MPRester:
                 (e.g., mp-1234) or full Mongo-style dict criteria.
             compatible_only (bool): Whether to return only "compatible"
                 entries. Compatible entries are entries that have been
-                processed using the MaterialsProjectCompatibility class,
+                processed using the MaterialsProject2020Compatibility class,
                 which performs adjustments to allow mixing of GGA and GGA+U
                 calculations for more accurate phase diagrams and reaction
                 energies.
@@ -554,14 +557,17 @@ class MPRester:
                 )
             entries.append(e)
         if compatible_only:
-            from pymatgen.entries.compatibility import MaterialsProjectCompatibility
+            from pymatgen.entries.compatibility import MaterialsProject2020Compatibility
 
-            entries = MaterialsProjectCompatibility().process_entries(entries)
+            # suppress the warning about missing oxidation states
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Failed to guess oxidation states.*")
+                entries = MaterialsProject2020Compatibility().process_entries(entries, clean=True)
         if sort_by_e_above_hull:
             entries = sorted(entries, key=lambda entry: entry.data["e_above_hull"])
         return entries
 
-    def get_pourbaix_entries(self, chemsys, solid_compat="MaterialsProjectCompatibility"):
+    def get_pourbaix_entries(self, chemsys, solid_compat="MaterialsProject2020Compatibility"):
         """
         A helper function to get all entries necessary to generate
         a pourbaix diagram from the rest interface.
@@ -571,9 +577,9 @@ class MPRester:
                 symbols separated by dashes, e.g., "Li-Fe-O" or List of element
                 symbols, e.g., ["Li", "Fe", "O"].
             solid_compat: Compatiblity scheme used to pre-process solid DFT energies prior to applying aqueous
-                energy adjustments. May be passed as a class (e.g. MaterialsProjectCompatibility) or an instance
-                (e.g., MaterialsProjectCompatibility()). If None, solid DFT energies are used as-is.
-                Default: MaterialsProjectCompatibility
+                energy adjustments. May be passed as a class (e.g. MaterialsProject2020Compatibility) or an instance
+                (e.g., MaterialsProject2020Compatibility()). If None, solid DFT energies are used as-is.
+                Default: MaterialsProject2020Compatibility
         """
         # imports are not top-level due to expense
 
@@ -581,12 +587,23 @@ class MPRester:
         from pymatgen.analysis.pourbaix_diagram import IonEntry, PourbaixEntry
         from pymatgen.core.ion import Ion
         from pymatgen.entries.compatibility import (
+            Compatibility,
             MaterialsProjectAqueousCompatibility,
+            MaterialsProject2020Compatibility,
             MaterialsProjectCompatibility,
         )
 
         if solid_compat == "MaterialsProjectCompatibility":
-            solid_compat = MaterialsProjectCompatibility
+            self.solid_compat = MaterialsProjectCompatibility()
+        elif solid_compat == "MaterialsProject2020Compatibility":
+            self.solid_compat = MaterialsProject2020Compatibility()
+        elif isinstance(solid_compat, Compatibility):
+            self.solid_compat = solid_compat
+        else:
+            raise ValueError(
+                "Solid compatibility can only be 'MaterialsProjectCompatibility', "
+                "'MaterialsProject2020Compatibility', or an instance of a Compatability class"
+            )
 
         pbx_entries = []
 
@@ -612,8 +629,11 @@ class MPRester:
                 "ignore",
                 message="You did not provide the required O2 and H2O energies.",
             )
-            compat = MaterialsProjectAqueousCompatibility(solid_compat=solid_compat)
-        ion_ref_entries = compat.process_entries(ion_ref_entries)
+            compat = MaterialsProjectAqueousCompatibility(solid_compat=self.solid_compat)
+        # suppress the warning about missing oxidation states
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Failed to guess oxidation states.*")
+            ion_ref_entries = compat.process_entries(ion_ref_entries)
         ion_ref_pd = PhaseDiagram(ion_ref_entries)
 
         # position the ion energies relative to most stable reference state
@@ -624,6 +644,7 @@ class MPRester:
                 raise ValueError("Reference solid not contained in entry list")
             stable_ref = sorted(refs, key=lambda x: x.data["e_above_hull"])[0]
             rf = stable_ref.composition.get_reduced_composition_and_factor()[1]
+
             solid_diff = ion_ref_pd.get_form_energy(stable_ref) - i_d["Reference solid energy"] * rf
             elt = i_d["Major_Elements"][0]
             correction_factor = ion.composition[elt] / stable_ref.composition[elt]
@@ -632,6 +653,7 @@ class MPRester:
             pbx_entries.append(PourbaixEntry(ion_entry, "ion-{}".format(n)))
 
         # Construct the solid pourbaix entries from filtered ion_ref entries
+
         extra_elts = set(ion_ref_elts) - {Element(s) for s in chemsys} - {Element("H"), Element("O")}
         for entry in ion_ref_entries:
             entry_elts = set(entry.composition.elements)
@@ -703,7 +725,7 @@ class MPRester:
                 e.g., mp-1234).
             compatible_only (bool): Whether to return only "compatible"
                 entries. Compatible entries are entries that have been
-                processed using the MaterialsProjectCompatibility class,
+                processed using the MaterialsProject2020Compatibility class,
                 which performs adjustments to allow mixing of GGA and GGA+U
                 calculations for more accurate phase diagrams and reaction
                 energies.
@@ -822,7 +844,7 @@ class MPRester:
                 symbols, e.g., ["Li", "Fe", "O"].
             compatible_only (bool): Whether to return only "compatible"
                 entries. Compatible entries are entries that have been
-                processed using the MaterialsProjectCompatibility class,
+                processed using the MaterialsProject2020Compatibility class,
                 which performs adjustments to allow mixing of GGA and GGA+U
                 calculations for more accurate phase diagrams and reaction
                 energies.
@@ -995,7 +1017,7 @@ class MPRester:
                     break
                 except MPRestError as e:
                     # pylint: disable=E1101
-                    match = re.search(r"error status code (\d+)", e.message)
+                    match = re.search(r"error status code (\d+)", str(e))
                     if match:
                         if not match.group(1).startswith("5"):
                             raise e
@@ -1531,31 +1553,72 @@ class MPRester:
         # task_id's correspond to NoMaD external_id's
         task_types = [t.value for t in task_types if isinstance(t, TaskType)] if task_types else []
 
-        meta = defaultdict(list)
-        for doc in self.query({"material_id": {"$in": material_ids}}, ["material_id", "blessed_tasks"]):
-
+        meta = {}
+        for doc in self.query({"task_id": {"$in": material_ids}}, ["task_id", "blessed_tasks"]):
             for task_type, task_id in doc["blessed_tasks"].items():
                 if task_types and task_type not in task_types:
                     continue
-                meta[doc["material_id"]].append({"task_id": task_id, "task_type": task_type})
-
+                mp_id = doc["task_id"]
+                if meta.get(mp_id) is None:
+                    meta[mp_id] = [{"task_id": task_id, "task_type": task_type}]
+                else:
+                    meta[mp_id].append({"task_id": task_id, "task_type": task_type})
         if not meta:
-            raise ValueError("No tasks found.")
+            raise ValueError(f"No tasks found for material id {material_ids}.")
 
         # return a list of URLs for NoMaD Downloads containing the list of files
         # for every external_id in `task_ids`
-        prefix = "http://labdev-nomad.esc.rzg.mpg.de/fairdi/nomad/mp/api/raw/query?"
+        # For reference, please visit https://nomad-lab.eu/prod/rae/api/
+
+        # check if these task ids exist on NOMAD
+        prefix = "https://nomad-lab.eu/prod/rae/api/repo/?"
         if file_patterns is not None:
             for file_pattern in file_patterns:
                 prefix += f"file_pattern={file_pattern}&"
         prefix += "external_id="
 
-        # NOTE: IE has 2kb URL char limit
-        nmax = int((2000 - len(prefix)) / 11)  # mp-<7-digit> + , = 11
         task_ids = [t["task_id"] for tl in meta.values() for t in tl]
-        chunks = get_chunks(task_ids, size=nmax)
-        urls = [prefix + ",".join(tids) for tids in chunks]
+        nomad_exist_task_ids = self._check_get_download_info_url_by_task_id(prefix=prefix, task_ids=task_ids)
+        if len(nomad_exist_task_ids) != len(task_ids):
+            self._print_help_message(nomad_exist_task_ids, task_ids, file_patterns, task_types)
+
+        # generate download links for those that exist
+        prefix = "https://nomad-lab.eu/prod/rae/api/raw/query?"
+        if file_patterns is not None:
+            for file_pattern in file_patterns:
+                prefix += f"file_pattern={file_pattern}&"
+        prefix += "external_id="
+
+        urls = [prefix + tids for tids in nomad_exist_task_ids]
         return meta, urls
+
+    @staticmethod
+    def _print_help_message(nomad_exist_task_ids, task_ids, file_patterns, task_types):
+        non_exist_ids = set(task_ids) - set(nomad_exist_task_ids)
+        warnings.warn(
+            f"For file patterns [{file_patterns}] and task_types [{task_types}], \n"
+            f"the following ids are not found on NOMAD [{list(non_exist_ids)}]. \n"
+            f"If you need to upload them, please contact Patrick Huck at phuck@lbl.gov"
+        )
+
+    def _check_get_download_info_url_by_task_id(self, prefix, task_ids) -> List[str]:
+        nomad_exist_task_ids: List[str] = []
+        prefix = prefix.replace("/raw/query", "/repo/")
+        for task_id in task_ids:
+            url = prefix + task_id
+            if self._check_nomad_exist(url):
+                nomad_exist_task_ids.append(task_id)
+        return nomad_exist_task_ids
+
+    @staticmethod
+    def _check_nomad_exist(url) -> bool:
+        response = requests.get(url=url)
+        if response.status_code != 200:
+            return False
+        content = json.loads(response.text)
+        if content["pagination"]["total"] == 0:
+            return False
+        return True
 
     @staticmethod
     def parse_criteria(criteria_string):

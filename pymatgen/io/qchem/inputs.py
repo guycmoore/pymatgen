@@ -5,8 +5,9 @@
 """
 Classes for reading/manipulating/writing QChem input files.
 """
-
 import logging
+import sys
+from typing import Dict, List, Optional, Tuple, Union
 
 from monty.io import zopen
 from monty.json import MSONable
@@ -15,7 +16,12 @@ from pymatgen.core import Molecule
 
 from .utils import lower_and_check_unique, read_pattern, read_table_pattern
 
-__author__ = "Brandon Wood, Samuel Blau, Shyam Dwaraknath, Julian Self"
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+__author__ = "Brandon Wood, Samuel Blau, Shyam Dwaraknath, Julian Self, Evan Spotte-Smith"
 __copyright__ = "Copyright 2018, The Materials Project"
 __version__ = "0.1"
 __email__ = "b.wood@berkeley.edu"
@@ -33,7 +39,20 @@ class QCInput(MSONable):
     separate error handling software.
     """
 
-    def __init__(self, molecule, rem, opt=None, pcm=None, solvent=None, smx=None, plots=None):
+    def __init__(
+        self,
+        molecule: Union[Molecule, Literal["read"]],
+        rem: Dict,
+        opt: Optional[Dict[str, List]] = None,
+        pcm: Optional[Dict] = None,
+        solvent: Optional[Dict] = None,
+        smx: Optional[Dict] = None,
+        scan: Optional[Dict[str, List]] = None,
+        van_der_waals: Optional[Dict[str, float]] = None,
+        vdw_mode: str = "atomic",
+        plots: Optional[Dict] = None,
+        nbo: Optional[Dict] = None,
+    ):
         """
         Args:
             molecule (pymatgen Molecule object or "read"):
@@ -48,6 +67,36 @@ class QCInput(MSONable):
                 values are a list of strings. Stings must be formatted as instructed by the QChem manual.
                 The different opt sections are: CONSTRAINT, FIXED, DUMMY, and CONNECT
                 Ex. opt = {"CONSTRAINT": ["tors 2 3 4 5 25.0", "tors 2 5 7 9 80.0"], "FIXED": ["2 XY"]}
+            pcm (dict):
+                A dictionary of the PCM section, defining behavior for use of the polarizable continuum model.
+                Ex: pcm = {"theory": "cpcm", "hpoints": 194}
+            solvent (dict):
+                A dictionary defining the solvent parameters used with PCM.
+                Ex: solvent = {"dielectric": 78.39, "temperature": 298.15}
+            smx (dict):
+                A dictionary defining solvent parameters used with the SMD method, a solvent method that adds
+                short-range terms to PCM.
+                Ex: smx = {"solvent": "water"}
+            scan (dict of lists):
+                A dictionary of scan variables. Because two constraints of the same type are allowed (for instance, two
+                torsions or two bond stretches), each TYPE of variable (stre, bend, tors) should be its own key in the
+                dict, rather than each variable. Note that the total number of variable (sum of lengths of all lists)
+                CANNOT be
+                more than two.
+                Ex. scan = {"stre": ["3 6 1.5 1.9 0.1"], "tors": ["1 2 3 4 -180 180 15"]}
+            van_der_waals (dict):
+                A dictionary of custom van der Waals radii to be used when construcing cavities for the PCM
+                model or when computing, e.g. Mulliken charges. They keys are strs whose meaning depends on
+                the value of vdw_mode, and the values are the custom radii in angstroms.
+            vdw_mode (str): Method of specifying custom van der Waals radii - 'atomic' or 'sequential'.
+                In 'atomic' mode (default), dict keys represent the atomic number associated with each
+                radius (e.g., 12 = carbon). In 'sequential' mode, dict keys represent the sequential
+                position of a single specific atom in the input structure.
+            plots (dict):
+                    A dictionary of all the input parameters for the plots section of QChem input file.
+            nbo (dict):
+                    A dictionary of all the input parameters for the nbo section of QChem input file.
+
         """
         self.molecule = molecule
         self.rem = lower_and_check_unique(rem)
@@ -55,16 +104,11 @@ class QCInput(MSONable):
         self.pcm = lower_and_check_unique(pcm)
         self.solvent = lower_and_check_unique(solvent)
         self.smx = lower_and_check_unique(smx)
+        self.scan = lower_and_check_unique(scan)
+        self.van_der_waals = lower_and_check_unique(van_der_waals)
+        self.vdw_mode = vdw_mode
         self.plots = lower_and_check_unique(plots)
-
-        # Make sure molecule is valid: either the string "read" or a pymatgen molecule object
-
-        if isinstance(self.molecule, str):
-            self.molecule = self.molecule.lower()
-            if self.molecule != "read":
-                raise ValueError('The only acceptable text value for molecule is "read"')
-        elif not isinstance(self.molecule, Molecule):
-            raise ValueError("The molecule must either be the string 'read' or be a pymatgen Molecule object")
+        self.nbo = lower_and_check_unique(nbo)
 
         # Make sure rem is valid:
         #   - Has a basis
@@ -79,6 +123,8 @@ class QCInput(MSONable):
             "frequency",
             "force",
             "nmr",
+            "ts",
+            "pes_scan",
         ]
 
         if "basis" not in self.rem:
@@ -121,14 +167,26 @@ class QCInput(MSONable):
         if self.smx:
             combined_list.append(self.smx_template(self.smx))
             combined_list.append("")
+        # section for pes_scan
+        if self.scan:
+            combined_list.append(self.scan_template(self.scan))
+            combined_list.append("")
+        # section for van_der_waals radii
+        if self.van_der_waals:
+            combined_list.append(self.van_der_waals_template(self.van_der_waals, self.vdw_mode))
+            combined_list.append("")
         # plots section
         if self.plots:
             combined_list.append(self.plots_template(self.plots))
             combined_list.append("")
+        # nbo section
+        if self.nbo is not None:
+            combined_list.append(self.nbo_template(self.nbo))
+            combined_list.append("")
         return "\n".join(combined_list)
 
     @staticmethod
-    def multi_job_string(job_list):
+    def multi_job_string(job_list: List["QCInput"]) -> str:
         """
         Args:
             job_list (): List of jobs
@@ -145,7 +203,7 @@ class QCInput(MSONable):
         return multi_job_string
 
     @classmethod
-    def from_string(cls, string):
+    def from_string(cls, string: str) -> "QCInput":
         """
         Read QcInput from string.
 
@@ -163,7 +221,11 @@ class QCInput(MSONable):
         pcm = None
         solvent = None
         smx = None
+        scan = None
+        vdw = None
+        vdw_mode = "atomic"
         plots = None
+        nbo = None
         if "opt" in sections:
             opt = cls.read_opt(string)
         if "pcm" in sections:
@@ -172,11 +234,29 @@ class QCInput(MSONable):
             solvent = cls.read_solvent(string)
         if "smx" in sections:
             smx = cls.read_smx(string)
+        if "scan" in sections:
+            scan = cls.read_scan(string)
+        if "van_der_waals" in sections:
+            vdw_mode, vdw = cls.read_vdw(string)
         if "plots" in sections:
             plots = cls.read_plots(string)
-        return cls(molecule, rem, opt=opt, pcm=pcm, solvent=solvent, smx=smx, plots=plots)
+        if "nbo" in sections:
+            nbo = cls.read_nbo(string)
+        return cls(
+            molecule,
+            rem,
+            opt=opt,
+            solvent=solvent,
+            pcm=pcm,
+            smx=smx,
+            scan=scan,
+            van_der_waals=vdw,
+            vdw_mode=vdw_mode,
+            plots=plots,
+            nbo=nbo,
+        )
 
-    def write_file(self, filename):
+    def write_file(self, filename: str):
         """
         Write QcInput to file.
 
@@ -187,7 +267,7 @@ class QCInput(MSONable):
             f.write(self.__str__())
 
     @staticmethod
-    def write_multi_job_file(job_list, filename):
+    def write_multi_job_file(job_list: List["QCInput"], filename: str):
         """
         Write a multijob file.
 
@@ -199,7 +279,7 @@ class QCInput(MSONable):
             f.write(QCInput.multi_job_string(job_list))
 
     @staticmethod
-    def from_file(filename):
+    def from_file(filename: str) -> "QCInput":
         """
         Create QcInput from file.
         Args:
@@ -212,7 +292,7 @@ class QCInput(MSONable):
             return QCInput.from_string(f.read())
 
     @classmethod
-    def from_multi_jobs_file(cls, filename):
+    def from_multi_jobs_file(cls, filename: str) -> List["QCInput"]:
         """
         Create list of QcInput from a file.
         Args:
@@ -229,7 +309,7 @@ class QCInput(MSONable):
             return input_list
 
     @staticmethod
-    def molecule_template(molecule):
+    def molecule_template(molecule: Union[Molecule, Literal["read"]]) -> str:
         """
         Args:
             molecule (Molecule): molecule
@@ -259,7 +339,7 @@ class QCInput(MSONable):
         return "\n".join(mol_list)
 
     @staticmethod
-    def rem_template(rem):
+    def rem_template(rem: Dict) -> str:
         """
         Args:
             rem ():
@@ -275,7 +355,7 @@ class QCInput(MSONable):
         return "\n".join(rem_list)
 
     @staticmethod
-    def opt_template(opt):
+    def opt_template(opt: Dict[str, List]) -> str:
         """
         Optimization template.
 
@@ -301,7 +381,7 @@ class QCInput(MSONable):
         return "\n".join(opt_list)
 
     @staticmethod
-    def pcm_template(pcm):
+    def pcm_template(pcm: Dict) -> str:
         """
         Pcm run template.
 
@@ -319,7 +399,7 @@ class QCInput(MSONable):
         return "\n".join(pcm_list)
 
     @staticmethod
-    def solvent_template(solvent):
+    def solvent_template(solvent: Dict) -> str:
         """
         Solvent template.
 
@@ -337,7 +417,7 @@ class QCInput(MSONable):
         return "\n".join(solvent_list)
 
     @staticmethod
-    def smx_template(smx):
+    def smx_template(smx: Dict) -> str:
         """
         Args:
             smx ():
@@ -356,7 +436,60 @@ class QCInput(MSONable):
         return "\n".join(smx_list)
 
     @staticmethod
-    def plots_template(plots):
+    def scan_template(scan: Dict[str, List]) -> str:
+        """
+        Args:
+            scan (dict): Dictionary with scan section information.
+                Ex: {"stre": ["3 6 1.5 1.9 0.1"], "tors": ["1 2 3 4 -180 180 15"]}
+
+        Returns:
+            String representing Q-Chem input format for scan section
+        """
+        scan_list = []
+        scan_list.append("$scan")
+        total_vars = sum([len(v) for v in scan.values()])
+        if total_vars > 2:
+            raise ValueError("Q-Chem only supports PES_SCAN with two or less " "variables.")
+        for var_type, variables in scan.items():
+            if variables not in [None, []]:
+                for var in variables:
+                    scan_list.append("   {var_type} {var}".format(var_type=var_type, var=var))
+        scan_list.append("$end")
+        return "\n".join(scan_list)
+
+    @staticmethod
+    def van_der_waals_template(radii: Dict[str, float], mode: str = "atomic") -> str:
+        """
+        Args:
+            radii (dict): Dictionary with custom van der Waals radii, in
+                Angstroms, keyed by either atomic number or sequential
+                atom number (see 'mode' kwarg).
+                Ex: {1: 1.20, 12: 1.70}
+            mode: 'atomic' or 'sequential'. In 'atomic' mode (default), dict keys
+                represent the atomic number associated with each radius (e.g., '12' = carbon).
+                In 'sequential' mode, dict keys represent the sequential position of
+                a single specific atom in the input structure.
+                **NOTE: keys must be given as strings even though they are numbers!**
+
+        Returns:
+            String representing Q-Chem input format for van_der_waals section
+        """
+        vdw_list = []
+        vdw_list.append("$van_der_waals")
+        if mode == "atomic":
+            vdw_list.append("1")
+        elif mode == "sequential":
+            vdw_list.append("2")
+        else:
+            raise ValueError(f"Invalid value {mode} given for 'mode' kwarg.")
+
+        for num, radius in radii.items():
+            vdw_list.append(f"   {num} {radius}")
+        vdw_list.append("$end")
+        return "\n".join(vdw_list)
+
+    @staticmethod
+    def plots_template(plots: Dict) -> str:
         """
         Args:
             plots ():
@@ -372,7 +505,23 @@ class QCInput(MSONable):
         return "\n".join(plots_list)
 
     @staticmethod
-    def find_sections(string):
+    def nbo_template(nbo: Dict) -> str:
+        """
+        Args:
+            nbo ():
+
+        Returns:
+            (str)
+        """
+        nbo_list = []
+        nbo_list.append("$nbo")
+        for key, value in nbo.items():
+            nbo_list.append("   {key} = {value}".format(key=key, value=value))
+        nbo_list.append("$end")
+        return "\n".join(nbo_list)
+
+    @staticmethod
+    def find_sections(string: str) -> List:
         """
         Find sections in the string.
 
@@ -382,7 +531,7 @@ class QCInput(MSONable):
         Returns:
             List of sections.
         """
-        patterns = {"sections": r"^\s*?\$([a-z]+)", "multiple_jobs": r"(@@@)"}
+        patterns = {"sections": r"^\s*?\$([a-z_]+)", "multiple_jobs": r"(@@@)"}
         matches = read_pattern(string, patterns)
         # list of the sections present
         sections = [val[0] for val in matches["sections"]]
@@ -398,7 +547,7 @@ class QCInput(MSONable):
         return sections
 
     @staticmethod
-    def read_molecule(string):
+    def read_molecule(string: str) -> Union[Molecule, Literal["read"]]:
         """
         Read molecule from string.
 
@@ -428,11 +577,14 @@ class QCInput(MSONable):
         mol_table = read_table_pattern(string, header_pattern=header, row_pattern=row, footer_pattern=footer)
         species = [val[0] for val in mol_table[0]]
         coords = [[float(val[1]), float(val[2]), float(val[3])] for val in mol_table[0]]
-        mol = Molecule(species=species, coords=coords, charge=charge, spin_multiplicity=spin_mult)
+        if charge is None:
+            mol = Molecule(species=species, coords=coords)
+        else:
+            mol = Molecule(species=species, coords=coords, charge=charge, spin_multiplicity=spin_mult)
         return mol
 
     @staticmethod
-    def read_rem(string):
+    def read_rem(string: str) -> Dict:
         """
         Parse rem from string.
 
@@ -449,7 +601,7 @@ class QCInput(MSONable):
         return dict(rem_table[0])
 
     @staticmethod
-    def read_opt(string):
+    def read_opt(string: str) -> Dict[str, List]:
         """
         Read opt section from string.
 
@@ -472,12 +624,7 @@ class QCInput(MSONable):
             c_header = r"^\s*CONSTRAINT\n"
             c_row = r"(\w.*)\n"
             c_footer = r"^\s*ENDCONSTRAINT\n"
-            c_table = read_table_pattern(
-                string,
-                header_pattern=c_header,
-                row_pattern=c_row,
-                footer_pattern=c_footer,
-            )
+            c_table = read_table_pattern(string, header_pattern=c_header, row_pattern=c_row, footer_pattern=c_footer)
             opt["CONSTRAINT"] = [val[0] for val in c_table[0]]
         if "FIXED" in opt_sections:
             f_header = r"^\s*FIXED\n"
@@ -515,7 +662,7 @@ class QCInput(MSONable):
         return opt
 
     @staticmethod
-    def read_pcm(string):
+    def read_pcm(string: str) -> Dict:
         """
         Read pcm parameters from string.
 
@@ -536,7 +683,33 @@ class QCInput(MSONable):
         return dict(pcm_table[0])
 
     @staticmethod
-    def read_solvent(string):
+    def read_vdw(string: str) -> Tuple[str, Dict]:
+        """
+        Read van der Waals parameters from string.
+
+        Args:
+            string (str): String
+
+        Returns:
+            (str, dict) vdW mode ('atomic' or 'sequential') and dict of van der Waals radii.
+        """
+        header = r"^\s*\$van_der_waals"
+        row = r"[^\d]*(\d+).?(\d+.\d+)?.*"
+        footer = r"^\s*\$end"
+        vdw_table = read_table_pattern(string, header_pattern=header, row_pattern=row, footer_pattern=footer)
+        if not vdw_table:
+            print("No valid vdW inputs found. Note that there should be no '=' chracters in vdW input lines.")
+            return "", {}
+
+        if vdw_table[0][0][0] == 2:
+            mode = "sequential"
+        else:
+            mode = "atomic"
+
+        return mode, dict(vdw_table[0][1:])
+
+    @staticmethod
+    def read_solvent(string: str) -> Dict:
         """
         Read solvent parameters from string.
 
@@ -557,7 +730,7 @@ class QCInput(MSONable):
         return dict(solvent_table[0])
 
     @staticmethod
-    def read_smx(string):
+    def read_smx(string: str) -> Dict:
         """
         Read smx parameters from string.
 
@@ -582,7 +755,42 @@ class QCInput(MSONable):
         return smx
 
     @staticmethod
-    def read_plots(string):
+    def read_scan(string: str) -> Dict[str, List]:
+        """
+        Read scan section from a string.
+
+        Args:
+            string: String to be parsed
+
+        Returns:
+            Dict representing Q-Chem scan section
+        """
+        header = r"^\s*\$scan"
+        row = r"\s*(stre|bend|tors|STRE|BEND|TORS)\s+((?:[\-\.0-9]+\s*)+)"
+        footer = r"^\s*\$end"
+        scan_table = read_table_pattern(string, header_pattern=header, row_pattern=row, footer_pattern=footer)
+        if scan_table == []:
+            print("No valid scan inputs found. Note that there should be no '=' chracters in scan input lines.")
+            return {}
+
+        stre = []
+        bend = []
+        tors = []
+        for row in scan_table[0]:
+            if row[0].lower() == "stre":
+                stre.append(row[1].replace("\n", "").rstrip())
+            elif row[0].lower() == "bend":
+                bend.append(row[1].replace("\n", "").rstrip())
+            elif row[0].lower() == "tors":
+                tors.append(row[1].replace("\n", "").rstrip())
+
+        if len(stre) + len(bend) + len(tors) > 2:
+            raise ValueError("No more than two variables are allows in the scan section!")
+
+        return {"stre": stre, "bend": bend, "tors": tors}
+
+    @staticmethod
+    def read_plots(string: str) -> Dict:
         """
         Read plots parameters from string.
 
@@ -603,3 +811,26 @@ class QCInput(MSONable):
         for key, val in plots_table[0]:
             plots[key] = val
         return plots
+
+    @staticmethod
+    def read_nbo(string: str) -> Dict:
+        """
+        Read nbo parameters from string.
+
+        Args:
+            string (str): String
+
+        Returns:
+            (dict) nbo parameters.
+        """
+        header = r"^\s*\$nbo"
+        row = r"\s*([a-zA-Z\_]+)\s*=?\s*(\S+)"
+        footer = r"^\s*\$end"
+        nbo_table = read_table_pattern(string, header_pattern=header, row_pattern=row, footer_pattern=footer)
+        if nbo_table == []:
+            print("No valid nbo inputs found.")
+            return {}
+        nbo = {}
+        for key, val in nbo_table[0]:
+            nbo[key] = val
+        return nbo

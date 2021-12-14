@@ -7,15 +7,31 @@ This module defines classes to represent any type of spectrum, essentially any
 x y value pairs.
 """
 
-from typing import List
+import sys
+from typing import Callable, List, Union
 
 import numpy as np
 from monty.json import MSONable
-from scipy.ndimage.filters import gaussian_filter1d
-
+from scipy import stats
+from scipy.ndimage.filters import convolve1d
 
 from pymatgen.util.coord import get_linear_interpolated_value
 from pymatgen.util.typing import ArrayLike
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
+
+
+def lorentzian(x, x_0: float = 0, sigma: float = 1.0):
+    """
+    :param x: x values
+    :param x_0: Center
+    :param sigma: FWHM
+    :return: Value of lorentzian at x.
+    """
+    return 1 / np.pi * 0.5 * sigma / ((x - x_0) ** 2 + (0.5 * sigma) ** 2)
 
 
 class Spectrum(MSONable):
@@ -64,14 +80,14 @@ class Spectrum(MSONable):
     def __len__(self):
         return self.ydim[0]
 
-    def normalize(self, mode: str = "max", value: float = 1.0):
+    def normalize(self, mode: Literal["max", "sum"] = "max", value: float = 1.0):
         """
         Normalize the spectrum with respect to the sum of intensity
 
         Args:
-            mode (str): Normalization mode. Supported modes are "max" (set the
-                max y value to value, e.g., in XRD patterns), "sum" (set the
-                sum of y to a value, i.e., like a probability density).
+            mode ("max" | "sum"): Normalization mode. "max" sets the max y value to value,
+                e.g., in XRD patterns. "sum" sets the sum of y to a value, i.e., like a
+                probability density.
             value (float): Value to normalize to. Defaults to 1.
         """
         if mode.lower() == "sum":
@@ -83,19 +99,33 @@ class Spectrum(MSONable):
 
         self.y /= factor / value
 
-    def smear(self, sigma: float):
+    def smear(self, sigma: float = 0.0, func: Union[str, Callable] = "gaussian"):
         """
-        Apply Gaussian smearing to spectrum y value.
+        Apply Gaussian/Lorentzian smearing to spectrum y value.
 
         Args:
             sigma: Std dev for Gaussian smear function
+            func: "gaussian" or "lorentzian" or a callable. If this is a callable, the sigma value is ignored. The
+                callable should only take a single argument (a numpy array) and return a set of weights.
         """
-        diff = [self.x[i + 1] - self.x[i] for i in range(len(self.x) - 1)]
-        avg_x_per_step = np.sum(diff) / len(diff)
-        if len(self.ydim) == 1:
-            self.y = gaussian_filter1d(self.y, sigma / avg_x_per_step)
+        points = np.linspace(np.min(self.x) - np.mean(self.x), np.max(self.x) - np.mean(self.x), len(self.x))
+        if callable(func):
+            weights = func(points)
+        elif func.lower() == "gaussian":
+            weights = stats.norm.pdf(points, scale=sigma)
+        elif func.lower() == "lorentzian":
+            weights = lorentzian(points, sigma=sigma)
         else:
-            self.y = np.array([gaussian_filter1d(self.y[:, k], sigma / avg_x_per_step) for k in range(self.ydim[1])]).T
+            raise ValueError(f"Invalid func {func}")
+        weights /= np.sum(weights)
+        if len(self.ydim) == 1:
+            total = np.sum(self.y)
+            self.y = convolve1d(self.y, weights)
+            self.y *= total / np.sum(self.y)  # renormalize to maintain the same integrated sum as before.
+        else:
+            total = np.sum(self.y, axis=0)
+            self.y = np.array([convolve1d(self.y[:, k], weights) for k in range(self.ydim[1])]).T
+            self.y *= total / np.sum(self.y, axis=0)  # renormalize to maintain the same integrated sum as before.
 
     def get_interpolated_value(self, x: float) -> List[float]:
         """

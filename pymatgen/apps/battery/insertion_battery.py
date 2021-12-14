@@ -10,11 +10,7 @@ intercalation batteries.
 
 __author__ = "Anubhav Jain, Shyue Ping Ong"
 __copyright__ = "Copyright 2012, The Materials Project"
-__version__ = "0.1"
-__maintainer__ = "Anubhav Jain"
-__email__ = "ajain@lbl.gov"
-__date__ = "Jan 13, 2012"
-__status__ = "Beta"
+
 
 import itertools
 from dataclasses import dataclass
@@ -39,8 +35,8 @@ class InsertionElectrode(AbstractElectrode):
     insertion battery electrode.
     """
 
-    _stable_entries: Iterable[ComputedEntry]
-    _unstable_entries: Iterable[ComputedEntry]
+    stable_entries: Iterable[ComputedEntry]
+    unstable_entries: Iterable[ComputedEntry]
 
     @classmethod
     def from_entries(cls, entries, working_ion_entry, strip_structures=False):
@@ -99,22 +95,20 @@ class InsertionElectrode(AbstractElectrode):
 
         # create voltage pairs
         _vpairs = tuple(
-            [
-                InsertionVoltagePair.from_entries(
-                    _stable_entries[i],
-                    _stable_entries[i + 1],
-                    working_ion_entry,
-                )
-                for i in range(len(_stable_entries) - 1)
-            ]
+            InsertionVoltagePair.from_entries(
+                _stable_entries[i],
+                _stable_entries[i + 1],
+                working_ion_entry,
+            )
+            for i in range(len(_stable_entries) - 1)
         )
         framework = _vpairs[0].framework
-        return cls(
+        return cls(  # pylint: disable=E1123
             voltage_pairs=_vpairs,
             working_ion_entry=_working_ion_entry,
-            _stable_entries=_stable_entries,
-            _unstable_entries=_unstable_entries,
-            _framework_formula=framework.reduced_formula,
+            stable_entries=_stable_entries,
+            unstable_entries=_unstable_entries,
+            framework_formula=framework.reduced_formula,
         )
 
     def get_stable_entries(self, charge_to_discharge=True):
@@ -129,7 +123,7 @@ class InsertionElectrode(AbstractElectrode):
             A list of stable entries in the electrode, ordered by amount of the
             working ion.
         """
-        list_copy = list(self._stable_entries)
+        list_copy = list(self.stable_entries)
         return list_copy if charge_to_discharge else list_copy.reverse()
 
     def get_unstable_entries(self, charge_to_discharge=True):
@@ -144,7 +138,7 @@ class InsertionElectrode(AbstractElectrode):
             A list of unstable entries in the electrode, ordered by amount of
             the working ion.
         """
-        list_copy = list(self._unstable_entries)
+        list_copy = list(self.unstable_entries)
         return list_copy if charge_to_discharge else list_copy.reverse()
 
     def get_all_entries(self, charge_to_discharge=True):
@@ -174,14 +168,14 @@ class InsertionElectrode(AbstractElectrode):
         """
         The most charged entry along the topotactic path.
         """
-        return self._stable_entries[0]
+        return self.stable_entries[0]
 
     @property
     def fully_discharged_entry(self):
         """
         The most discharged entry along the topotactic path.
         """
-        return self._stable_entries[-1]
+        return self.stable_entries[-1]
 
     def get_max_instability(self, min_voltage=None, max_voltage=None):
         """
@@ -197,9 +191,9 @@ class InsertionElectrode(AbstractElectrode):
         """
         data = []
         for pair in self._select_in_voltage_range(min_voltage, max_voltage):
-            if pair.decomp_e_charge is not None:
+            if getattr(pair, "decomp_e_charge", None) is not None:
                 data.append(pair.decomp_e_charge)
-            if pair.decomp_e_discharge is not None:
+            if getattr(pair, "decomp_e_discharge", None) is not None:
                 data.append(pair.decomp_e_discharge)
         return max(data) if len(data) > 0 else None
 
@@ -217,9 +211,9 @@ class InsertionElectrode(AbstractElectrode):
         """
         data = []
         for pair in self._select_in_voltage_range(min_voltage, max_voltage):
-            if pair.decomp_e_charge is not None:
+            if getattr(pair, "decomp_e_charge", None) is not None:
                 data.append(pair.decomp_e_charge)
-            if pair.decomp_e_discharge is not None:
+            if getattr(pair, "decomp_e_discharge", None) is not None:
                 data.append(pair.decomp_e_discharge)
         return min(data) if len(data) > 0 else None
 
@@ -348,7 +342,7 @@ class InsertionElectrode(AbstractElectrode):
                 "unstable_material_ids": [itr_ent.entry_id for itr_ent in self.get_unstable_entries()],
             }
         )
-        if all(["decomposition_energy" in itr_ent.data for itr_ent in self.get_all_entries()]):
+        if all("decomposition_energy" in itr_ent.data for itr_ent in self.get_all_entries()):
             d.update(
                 {
                     "stability_charge": self.fully_charged_entry.data["decomposition_energy"],
@@ -359,7 +353,7 @@ class InsertionElectrode(AbstractElectrode):
                 }
             )
 
-        if all(["muO2" in itr_ent.data for itr_ent in self.get_all_entries()]):
+        if all("muO2" in itr_ent.data for itr_ent in self.get_all_entries()):
             d.update({"muO2_data": {itr_ent.entry_id: itr_ent.data["muO2"] for itr_ent in self.get_all_entries()}})
 
         return d
@@ -409,7 +403,7 @@ class InsertionElectrode(AbstractElectrode):
             "unstable_material_ids": [itr_ent.entry_id for itr_ent in self.get_unstable_entries()],
         }
 
-        if all(["decomposition_energy" in itr_ent.data for itr_ent in self.get_all_entries()]):
+        if all("decomposition_energy" in itr_ent.data for itr_ent in self.get_all_entries()):
             d.update(
                 {
                     "stability_charge": self.fully_charged_entry.data["decomposition_energy"],
@@ -420,7 +414,7 @@ class InsertionElectrode(AbstractElectrode):
                 }
             )
 
-        if all(["muO2" in itr_ent.data for itr_ent in self.get_all_entries()]):
+        if all("muO2" in itr_ent.data for itr_ent in self.get_all_entries()):
             d.update({"muO2_data": {itr_ent.entry_id: itr_ent.data["muO2"] for itr_ent in self.get_all_entries()}})
 
         if print_subelectrodes:
@@ -457,7 +451,7 @@ class InsertionElectrode(AbstractElectrode):
         from monty.json import MontyDecoder
 
         dec = MontyDecoder()
-        return cls(
+        return InsertionElectrode(  # pylint: disable=E1120
             dec.process_decoded(d["entries"]),
             dec.process_decoded(d["working_ion_entry"]),
         )
@@ -573,7 +567,7 @@ class InsertionVoltagePair(AbstractVoltagePair):
         _frac_charge = comp_charge.get_atomic_fraction(working_element)
         _frac_discharge = comp_discharge.get_atomic_fraction(working_element)
 
-        vpair = cls(
+        vpair = InsertionVoltagePair(  # pylint: disable=E1123
             voltage=_voltage,
             mAh=_mAh,
             mass_charge=_mass_charge,
@@ -585,7 +579,7 @@ class InsertionVoltagePair(AbstractVoltagePair):
             working_ion_entry=working_ion_entry,
             entry_charge=entry_charge,
             entry_discharge=entry_discharge,
-            _framework_formula=framework.reduced_formula,
+            framework_formula=framework.reduced_formula,
         )
 
         # Step 4: add (optional) hull and muO2 data

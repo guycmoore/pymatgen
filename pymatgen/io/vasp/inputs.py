@@ -15,11 +15,12 @@ import math
 import os
 import re
 import subprocess
+import sys
 import warnings
 from collections import OrderedDict, namedtuple
 from enum import Enum
 from hashlib import md5
-from typing import Dict, Any, Tuple, Sequence, Union
+from typing import Any, Dict, Sequence, Tuple, Union
 
 import numpy as np
 import scipy.constants as const
@@ -30,14 +31,19 @@ from monty.os.path import zpath
 from monty.serialization import loadfn
 from tabulate import tabulate
 
-from pymatgen import SETTINGS, __version__
+from pymatgen.core import SETTINGS
 from pymatgen.core.lattice import Lattice
 from pymatgen.core.periodic_table import Element, get_el_sp
 from pymatgen.core.structure import Structure
 from pymatgen.electronic_structure.core import Magmom
 from pymatgen.util.io_utils import clean_lines
 from pymatgen.util.string import str_delimited
-from pymatgen.util.typing import PathLike, ArrayLike
+from pymatgen.util.typing import ArrayLike, PathLike
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 __author__ = "Shyue Ping Ong, Geoffroy Hautier, Rickard Armiento, Vincent L Chevrier, Stephen Dacek"
 __copyright__ = "Copyright 2011, The Materials Project"
@@ -342,7 +348,7 @@ class Poscar(MSONable):
             iline_natoms_start = 5 + nlines_symbols
             for iline_natoms in range(iline_natoms_start, iline_natoms_start + nlines_symbols):
                 natoms.extend([int(i) for i in lines[iline_natoms].split()])
-            atomic_symbols = list()
+            atomic_symbols = []
             for i, nat in enumerate(natoms):
                 atomic_symbols.extend([symbols[i]] * nat)
             ipos = 5 + 2 * nlines_symbols
@@ -377,7 +383,7 @@ class Poscar(MSONable):
                 # Check if names are appended at the end of the coordinates.
                 atomic_symbols = [l.split()[ind] for l in lines[ipos + 1 : ipos + 1 + nsites]]
                 # Ensure symbols are valid elements
-                if not all([Element.is_valid_symbol(sym) for sym in atomic_symbols]):
+                if not all(Element.is_valid_symbol(sym) for sym in atomic_symbols):
                     raise ValueError("Non-valid symbols detected.")
                 vasp5_symbols = True
             except (ValueError, IndexError):
@@ -393,7 +399,7 @@ class Poscar(MSONable):
 
         # read the atomic coordinates
         coords = []
-        selective_dynamics = list() if sdynamics else None
+        selective_dynamics = [] if sdynamics else None
         for i in range(nsites):
             toks = lines[ipos + 1 + i].split()
             crd_scale = scale if cart else 1
@@ -967,8 +973,7 @@ class Incar(dict, MSONable):
         keyword), your calculation will still run, however VASP will igore the
         parameter without letting you know, hence why we have this Incar method.
         """
-        for k in self.keys():
-
+        for k, v in self.items():
             # First check if this parameter even exists
             if k not in incar_params.keys():
                 warnings.warn(
@@ -981,15 +986,15 @@ class Incar(dict, MSONable):
                 if type(incar_params[k]).__name__ == "str":
                     # Now we check if this is an appropriate parameter type
                     if incar_params[k] == "float":
-                        if not type(self[k]) not in ["float", "int"]:
+                        if not type(v) not in ["float", "int"]:
                             warnings.warn(
-                                "%s: %s is not real" % (k, self[k]),
+                                "%s: %s is not real" % (k, v),
                                 BadIncarWarning,
                                 stacklevel=2,
                             )
-                    elif type(self[k]).__name__ != incar_params[k]:
+                    elif type(v).__name__ != incar_params[k]:
                         warnings.warn(
-                            "%s: %s is not a %s" % (k, self[k], incar_params[k]),
+                            "%s: %s is not a %s" % (k, v, incar_params[k]),
                             BadIncarWarning,
                             stacklevel=2,
                         )
@@ -997,9 +1002,9 @@ class Incar(dict, MSONable):
                 # if we have a list of possible parameters, check
                 # if the user given parameter is in this list
                 elif type(incar_params[k]).__name__ == "list":
-                    if self[k] not in incar_params[k]:
+                    if v not in incar_params[k]:
                         warnings.warn(
-                            "%s: Cannot find %s in the list of parameters" % (k, self[k]),
+                            "%s: Cannot find %s in the list of parameters" % (k, v),
                             BadIncarWarning,
                             stacklevel=2,
                         )
@@ -1064,7 +1069,7 @@ class Kpoints(MSONable):
         is recommended that you use those.
 
         Args:
-            comment (str): String comment for Kpoints
+            comment (str): String comment for Kpoints. Defaults to "Default gamma".
             num_kpts: Following VASP method of defining the KPOINTS file, this
                 parameter is the number of kpoints specified. If set to 0
                 (or negative), VASP automatically generates the KPOINTS.
@@ -1232,10 +1237,7 @@ class Kpoints(MSONable):
         Returns:
             Kpoints
         """
-        comment = "pymatgen v%s with grid density = %.0f / number of atoms" % (
-            __version__,
-            kppa,
-        )
+        comment = "pymatgen with grid density = %.0f / number of atoms" % (kppa,)
         if math.fabs((math.floor(kppa ** (1 / 3) + 0.5)) ** 3 - kppa) < 1:
             kppa += kppa * 0.01
         latt = structure.lattice
@@ -1247,7 +1249,7 @@ class Kpoints(MSONable):
 
         is_hexagonal = latt.is_hexagonal()
 
-        has_odd = any([i % 2 == 1 for i in num_div])
+        has_odd = any(i % 2 == 1 for i in num_div)
         if has_odd or is_hexagonal or force_gamma:
             style = Kpoints.supported_modes.Gamma
         else:
@@ -1288,10 +1290,7 @@ class Kpoints(MSONable):
 
         style = Kpoints.supported_modes.Gamma
 
-        comment = "pymatgen v%s with grid density = %.0f / number of atoms" % (
-            __version__,
-            kppa,
-        )
+        comment = "pymatgen with grid density = %.0f / number of atoms" % (kppa,)
 
         num_kpts = 0
         return Kpoints(comment, num_kpts, style, [num_div], [0, 0, 0])
@@ -1333,8 +1332,8 @@ class Kpoints(MSONable):
         Returns:
             Kpoints object
         """
-        kpoints = list()
-        labels = list()
+        kpoints = []
+        labels = []
         for path in ibz.kpath["path"]:
             kpoints.append(ibz.kpath["kpoints"][path[0]])
             labels.append(path[0])
@@ -1968,7 +1967,7 @@ class PotcarSingle:
         """
         return self.functional_tags.get(self.LEXCH.lower(), {}).get("class")
 
-    def identify_potcar(self, mode: str = "data"):
+    def identify_potcar(self, mode: Literal["data", "file"] = "data"):
         """
         Identify the symbol and compatible functionals associated with this PotcarSingle.
 
@@ -1977,9 +1976,8 @@ class PotcarSingle:
         of hashes for POTCARs distributed with VASP 5.4.4.
 
         Args:
-            mode (str): 'data' or 'file'. 'data' mode checks the hash of the POTCAR
-                        data itself, while 'file' mode checks the hash of the entire
-                        POTCAR file, including metadata.
+            mode ('data' | 'file'): 'data' mode checks the hash of the POTCAR data itself,
+                while 'file' mode checks the hash of the entire POTCAR file, including metadata.
 
         Returns:
             symbol (List): List of symbols associated with the PotcarSingle

@@ -1,5 +1,7 @@
-pymatgen.io package
-===================
+pymatgen.io namespace
+=====================
+
+.. py:module:: pymatgen.io
 
 Subpackages
 -----------
@@ -15,6 +17,7 @@ Subpackages
    pymatgen.io.lobster
    pymatgen.io.qchem
    pymatgen.io.vasp
+   pymatgen.io.xtb
 
 Submodules
 ----------
@@ -44,11 +47,3 @@ Submodules
    pymatgen.io.xr
    pymatgen.io.xyz
    pymatgen.io.zeopp
-
-Module contents
----------------
-
-.. automodule:: pymatgen.io
-   :members:
-   :undoc-members:
-   :show-inheritance:
