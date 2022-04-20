@@ -30,6 +30,74 @@ __email__ = "gmoore@lbl.gov"
 __status__ = "Development"
 __date__ = "March 2021"
 
+def get_clusters_pair(adj_matrix_tri, num_site):
+
+    clusters = []
+    for i in range(num_site):
+        for link in adj_matrix_tri[i]:
+            j = link['id']
+            img = link['to_jimage']
+            # forward cluster
+            cluster = (i,j,img)
+            clusters.append(cluster)
+            # backward cluster
+            cluster = (j,i,tuple([-d for d in img]))
+            clusters.append(cluster)
+
+    return clusters
+
+def get_intersite_uvecs(structure, clusters):
+
+    # unit vectors between sites
+    uvecs = {}
+    for cluster in clusters:
+        (i, j, to_jimage) = cluster
+        # cartesian coordinates
+        svec = np.dot(structure.lattice.matrix.T, to_jimage)
+        vvec = structure[j].coords - structure[i].coords + svec
+        # # lattice coordinates
+        # vvec = structure[j].frac_coords - structure[i].frac_coords + to_jimage
+        # normalize vector
+        uvec = vvec / npla.norm(vvec)
+        uvecs[cluster] = uvec
+        
+        # print(to_jimage, vvec, npla.norm(vvec))
+        
+    return uvecs
+
+def get_configurations(
+    struct, num_config_mag, num_config_nonmag, disp_std=None):
+
+    if not disp_std:
+        disp_std = 0.01 * (npla.det(self.struct.lattice.matrix) / len(struct))**(1/3)
+
+    def rand_spin_unif(r):
+        
+        pos = np.zeros([3])
+        while npla.norm(pos) == 0.0:
+            pos = np.random.normal(0.0, 1.0, [3])
+        pos /= npla.norm(pos)
+        
+        # theta = 2*np.pi * random.uniform(0.0, 1.0)
+        # phi = np.arccos(random.uniform(-1.0, 1.0))
+        # pos = np.zeros([3])
+        # pos[0] = r*np.sin(phi)*np.cos(theta)
+        # pos[1] = r*np.sin(phi)*np.sin(theta)
+        # pos[2] = r*np.cos(phi)
+        
+        return pos
+
+    def rand_disp_gauss(sigma):
+        pos = np.random.normal(0.0,sigma,[3])
+        return pos
+
+    states_magn = [[rand_spin_unif(npla.norm(list(s.properties['magmom']))) for s in struct]
+                    for i in range(num_config_mag)]
+    states_disp = [[rand_disp_gauss(disp_std) for s in struct]
+                    for i in range(num_config_nonmag)]
+
+    return states_magn, states_disp
+
 class SpinDisplaceBondProjected:
     def __init__(self, structure, magmom_tol=0.1):
 
@@ -81,17 +149,7 @@ class SpinDisplaceBondProjected:
         self.enumerate_cluster_indices()
 
         # unit vectors between sites
-        self.uvecs = {}
-        for cluster in self.unique_pairs:
-            (i, j, to_jimage) = cluster
-            # cartesian coordinates
-            svec = np.dot(self.struct.lattice.matrix.T, to_jimage)
-            vvec = self.struct[j].coords - self.struct[i].coords + svec
-            # # lattice coordinates
-            # vvec = self.struct[j].frac_coords - self.struct[i].frac_coords + to_jimage
-            # normalize vector
-            uvec = vvec / npla.norm(vvec)
-            self.uvecs[cluster] = uvec
+        self.uvecs = get_intersite_uvecs(self.struct, self.unique_pairs_all)
 
         struct_nonmag = Structure(species=self.struct.species, 
                 coords=self.struct.frac_coords, 
@@ -129,12 +187,12 @@ class SpinDisplaceBondProjected:
         states_magn = self.states_magn
         states_disp_mag, states_disp_nonmag = self.states_disp, self.states_disp
 
-        forces_mag = [list(np.zeros([len(self.struct), 3])) for i in range(num_config)]
+        forces_mag    = [list(np.zeros([len(self.struct), 3])) for i in range(num_config)]
         forces_nonmag = [list(np.zeros([len(self.struct), 3])) for i in range(num_config)]
 
-        hmags = [list(np.zeros([len(self.struct), 3])) for i in range(num_config)]
+        hmags         = [list(np.zeros([len(self.struct), 3])) for i in range(num_config)]
 
-        energies_mag = [0.0 for i in range(num_config)]
+        energies_mag    = [0.0 for i in range(num_config)]
         energies_nonmag = [0.0 for i in range(num_config)]        
 
         self.construct_data_matrix_nonmagnetic(
@@ -155,48 +213,37 @@ class SpinDisplaceBondProjected:
         self.setup_constrained_least_squares()
         self.solve_constrained_least_squares()
 
+    def get_model_parameters(self):
+
+        j_matrix, jp_matrix, k_matrix = {}, {}, {}
+
+        xcomp_t = self.xcomp.T[0]
+
+        n = -1
+        for cluster in self.unique_pairs_mag:
+            n += 1
+            j_matrix[cluster] = xcomp_t[n]
+        for cluster in self.unique_pairs_mag:
+            n += 1
+            jp_matrix[cluster] = xcomp_t[n]
+        for cluster in self.unique_pairs:
+            n += 1
+            k_matrix[cluster] = xcomp_t[n]
+
+        return j_matrix, jp_matrix, k_matrix
+
     def enumerate_cluster_indices(self):
 
-        self.unique_pairs_mag = []
-        # for i in range(self.num_spin):
-        #     for j in self.adj_matrix_mag[i]:
-        #         cluster = [i,j]
-        #         cluster.sort()
-        #         self.unique_pairs_mag.append(tuple(cluster))
-        # self.unique_pairs_mag = list(set([tuple(cluster) for cluster in self.unique_pairs_mag]))
-        for i in range(self.num_spin):
-            for link in self.adj_matrix_tri_mag[i]:
-                j = link['id']
-                img = link['to_jimage']
-                # forward cluster
-                cluster = (i,j,img)
-                self.unique_pairs_mag.append(cluster)
-                # backward cluster
-                cluster = (j,i,tuple([-d for d in img]))
-                self.unique_pairs_mag.append(cluster)
-
-        self.unique_pairs = []
-        # for i in range(self.num_site):
-        #     for j in self.adj_matrix[i]:
-        #         cluster = [i,j]
-        #         cluster.sort()
-        #         self.unique_pairs.append(tuple(cluster))
-        # self.unique_pairs = list(set([tuple(cluster) for cluster in self.unique_pairs]))
-        for i in range(self.num_site):
-            for link in self.adj_matrix_tri[i]:
-                j = link['id']
-                img = link['to_jimage']
-                # forward cluster
-                cluster = (i,j,img)
-                self.unique_pairs.append(cluster)
-                # backward cluster
-                cluster = (j,i,tuple([-d for d in img]))
-                self.unique_pairs.append(cluster)
-
-        # include both NN and NN in magnetic structure
-        self.unique_pairs = self.unique_pairs+self.unique_pairs_mag
-#         # only examine NN (magnetic)
-#         self.unique_pairs = self.unique_pairs_mag
+        self.unique_pairs_mag = get_clusters_pair(self.adj_matrix_tri_mag, self.num_spin)
+        self.unique_pairs = get_clusters_pair(self.adj_matrix_tri, self.num_site)
+        
+        # all unique pairs
+        self.unique_pairs_all = list(set(self.unique_pairs+self.unique_pairs_mag))
+        
+        # # include both NN and NN in magnetic structure
+        # self.unique_pairs = self.unique_pairs+self.unique_pairs_mag
+        # # only examine NN (magnetic)
+        # self.unique_pairs = self.unique_pairs_mag
 
         self.num_params = 2 + len(self.unique_pairs_mag) + len(self.unique_pairs) \
                           + len(self.unique_pairs_mag)
@@ -219,36 +266,6 @@ class SpinDisplaceBondProjected:
         self.z = sp.sparse.linalg.lsqr(self.r_p, self.z0)[0]
         self.y = np.vstack((np.zeros([self.rank_c, 1]), np.transpose([self.z])))
         self.xcomp = self.q_c.dot(self.y)
-
-    def get_configurations(self,
-                           num_config_mag, num_config_nonmag,
-                           disp_std=None):
-
-        if disp_std:
-            self.disp_std = disp_std
-        else:
-            # self.disp_std = 0.01 * 1.0 / len(self.struct)**(1/3)
-            self.disp_std = 0.01 * self.struct.lattice.a / len(self.struct)**(1/3)
-
-        def rand_spin_unif(r):
-            theta = 2*np.pi * random.uniform(0.0, 1.0)
-            phi = np.arccos(random.uniform(-1.0, 1.0))
-            pos = np.zeros([3])
-            pos[0] = r*np.sin(phi)*np.cos(theta)
-            pos[1] = r*np.sin(phi)*np.sin(theta)
-            pos[2] = r*np.cos(phi)
-            return pos
-
-        def rand_disp_gauss(sigma):
-            pos = np.random.normal(0.0,sigma,[3])
-            return pos
-
-        states_magn = [[rand_spin_unif(npla.norm(list(s.properties['magmom']))) for s in self.struct]
-                        for i in range(num_config_mag)]
-        states_disp = [[rand_disp_gauss(self.disp_std) for s in self.struct]
-                        for i in range(num_config_nonmag)]
-
-        return states_magn, states_disp
 
     def construct_matrices(self):
 
@@ -277,8 +294,8 @@ class SpinDisplaceBondProjected:
         # construct full system
         row_len = row_shift
         col_len = self.num_params
-        self.config_matrix = coo_matrix((vals, (rows, cols)), 
-                                        shape=(row_len, col_len), dtype=float)
+        self.config_matrix = coo_matrix(
+            (vals, (rows, cols)), shape=(row_len, col_len), dtype=float)
         self.datavec = datavec.copy()
 
     def construct_data_matrix_magnetic(self, 
@@ -311,13 +328,13 @@ class SpinDisplaceBondProjected:
             n = -1
             for cluster in self.unique_pairs_mag:
                 n += 1
-                # Note: should be 2x if double-counting
-                jval_in = j_matrix_input[cluster[0], cluster[1]]
-                rows.append(eqn_counter)
-                cols.append(n)
-                vals.append(1.0)
-                datavec.append(jval_in)
-                eqn_counter += 1
+                if cluster in j_matrix_input.keys():
+                    jval_in = j_matrix_input[cluster]
+                    rows.append(eqn_counter)
+                    cols.append(n)
+                    vals.append(1.0)
+                    datavec.append(jval_in)
+                    eqn_counter += 1
 
 #         # Energies
 #         for i in range(self.num_config_mag):
@@ -335,15 +352,6 @@ class SpinDisplaceBondProjected:
 #                 vals.append(s_ip)
 #                 rows.append(eqn_counter)
 #                 cols.append(n)
-#             for cluster in self.unique_pairs:
-#                 n += 1
-#                 #
-#                 u_proj = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
-#                 u_proj = np.dot(u_proj, self.uvecs[cluster])
-#                 #
-#                 vals.append(u_proj**2)
-#                 rows.append(eqn_counter)
-#                 cols.append(n)
 #             for cluster in self.unique_pairs_mag:
 #                 n += 1
 #                 #
@@ -355,6 +363,15 @@ class SpinDisplaceBondProjected:
 #                 s_ip_exp = s_ip * u_proj
 #                 #
 #                 vals.append(s_ip_exp)
+#                 rows.append(eqn_counter)
+#                 cols.append(n)
+#             for cluster in self.unique_pairs:
+#                 n += 1
+#                 #
+#                 u_proj = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
+#                 u_proj = np.dot(u_proj, self.uvecs[cluster])
+#                 #
+#                 vals.append(u_proj**2)
 #                 rows.append(eqn_counter)
 #                 cols.append(n)
 #             # magnetic scalar
@@ -380,17 +397,6 @@ class SpinDisplaceBondProjected:
                     n = -1
                     for cluster in self.unique_pairs_mag:
                         n += 1
-                    for cluster in self.unique_pairs:
-                        n += 1
-                        if k in cluster:
-                            u_proj = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
-                            u_proj = np.dot(u_proj, self.uvecs[cluster])
-                            del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
-                            u_proj_p = (del_ik - del_jk) * self.uvecs[cluster][kl]
-                            #
-                            vals.append(2.0 * u_proj * u_proj_p)
-                            rows.append(eqn_counter)
-                            cols.append(n)
                     for cluster in self.unique_pairs_mag:
                         n += 1
                         if k in cluster:
@@ -403,41 +409,53 @@ class SpinDisplaceBondProjected:
                             vals.append(s_ip * u_proj_p)
                             rows.append(eqn_counter)
                             cols.append(n)
+                    for cluster in self.unique_pairs:
+                        n += 1
+                        if k in cluster:
+                            u_proj = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
+                            u_proj = np.dot(u_proj, self.uvecs[cluster])
+                            del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
+                            u_proj_p = (del_ik - del_jk) * self.uvecs[cluster][kl]
+                            #
+                            vals.append(2.0 * u_proj * u_proj_p)
+                            rows.append(eqn_counter)
+                            cols.append(n)
                     eqn_counter += 1
 
         # Spin derivatives
-        for i in range(self.num_config_mag):
-            for k in range(self.num_spin):
-                for kl in range(3):
+        if self.hmags:
+            for i in range(self.num_config_mag):
+                for k in range(self.num_spin):
+                    for kl in range(3):
 
-                    datavec.append(self.hmags[i][k][kl])
+                        datavec.append(self.hmags[i][k][kl])
 
-                    n = -1
-                    for cluster in self.unique_pairs_mag:
-                        n += 1
-                        if k in cluster:
-                            del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
-                            s_ix, s_jx = self.states_magn[i][cluster[0]][kl], \
-                                self.states_magn[i][cluster[1]][kl]
-                            #
-                            vals.append(s_jx*del_ik + s_ix*del_jk)
-                            rows.append(eqn_counter)
-                            cols.append(n)
-                    for cluster in self.unique_pairs:
-                        n += 1
-                    for cluster in self.unique_pairs_mag:
-                        n += 1
-                        if k in cluster:
-                            del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
-                            s_ix, s_jx = self.states_magn[i][cluster[0]][kl], \
-                                self.states_magn[i][cluster[1]][kl]
-                            u_proj = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
-                            u_proj = np.dot(u_proj, self.uvecs[cluster])
-                            #
-                            vals.append(u_proj*(s_jx*del_ik + s_ix*del_jk))
-                            rows.append(eqn_counter)
-                            cols.append(n)
-                    eqn_counter += 1
+                        n = -1
+                        for cluster in self.unique_pairs_mag:
+                            n += 1
+                            if k in cluster:
+                                del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
+                                s_ix, s_jx = self.states_magn[i][cluster[0]][kl], \
+                                    self.states_magn[i][cluster[1]][kl]
+                                #
+                                vals.append(s_jx*del_ik + s_ix*del_jk)
+                                rows.append(eqn_counter)
+                                cols.append(n)
+                        for cluster in self.unique_pairs_mag:
+                            n += 1
+                            if k in cluster:
+                                del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
+                                s_ix, s_jx = self.states_magn[i][cluster[0]][kl], \
+                                    self.states_magn[i][cluster[1]][kl]
+                                u_proj = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
+                                u_proj = np.dot(u_proj, self.uvecs[cluster])
+                                #
+                                vals.append(u_proj*(s_jx*del_ik + s_ix*del_jk))
+                                rows.append(eqn_counter)
+                                cols.append(n)
+                        for cluster in self.unique_pairs:
+                            n += 1
+                        eqn_counter += 1
 
         row_len, col_len = eqn_counter, self.num_params
         self.config_matrix_magnetic = coo_matrix((vals, (rows, cols)),
@@ -468,6 +486,8 @@ class SpinDisplaceBondProjected:
 #             n = -1
 #             for cluster in self.unique_pairs_mag:
 #                 n += 1
+#             for cluster in self.unique_pairs_mag:
+#                 n += 1
 #             for cluster in self.unique_pairs:
 #                 n += 1
 #                 #
@@ -477,8 +497,6 @@ class SpinDisplaceBondProjected:
 #                 vals.append(u_proj**2)
 #                 rows.append(eqn_counter)
 #                 cols.append(n)
-#             for cluster in self.unique_pairs_mag:
-#                 n += 1
 #             # magnetic scalar
 #             n += 1
 #             #
@@ -500,6 +518,8 @@ class SpinDisplaceBondProjected:
                     n = -1
                     for cluster in self.unique_pairs_mag:
                         n += 1
+                    for cluster in self.unique_pairs_mag:
+                        n += 1
                     for cluster in self.unique_pairs:
                         n += 1
                         if k in cluster:
@@ -511,8 +531,6 @@ class SpinDisplaceBondProjected:
                             vals.append(2.0 * u_proj * u_proj_p)
                             rows.append(eqn_counter)
                             cols.append(n)
-                    for cluster in self.unique_pairs_mag:
-                        n += 1
                     eqn_counter += 1
 
         row_len, col_len = eqn_counter, self.num_params
@@ -530,25 +548,29 @@ class SpinDisplaceBondProjected:
         row_len = 0
         rows.extend(self.j_ij_const.row + row_len)
         row_len += self.j_ij_const.get_shape()[0]
-        rows.extend(self.k_ij_const.row + row_len)
-        row_len += self.k_ij_const.get_shape()[0]
+        #
         rows.extend(self.m_ijk_const.row + row_len)
         row_len += self.m_ijk_const.get_shape()[0]
+        #
+        rows.extend(self.k_ij_const.row + row_len)
+        row_len += self.k_ij_const.get_shape()[0]
 
         ##
         col_len = 0
         cols.extend(self.j_ij_const.col + col_len)
         col_len += self.j_ij_const.get_shape()[1]
-        cols.extend(self.k_ij_const.col + col_len)
-        col_len += self.k_ij_const.get_shape()[1]
+        #
         cols.extend(self.m_ijk_const.col + col_len)
         col_len += self.m_ijk_const.get_shape()[1]
+        #
+        cols.extend(self.k_ij_const.col + col_len)
+        col_len += self.k_ij_const.get_shape()[1]
 
         ##
         vals.extend(self.j_ij_const.data)
-        vals.extend(self.k_ij_const.data)
         vals.extend(self.m_ijk_const.data)
-        
+        vals.extend(self.k_ij_const.data)
+
         # set to number of parameters (including scalars)
         col_len = self.num_params
 
@@ -578,8 +600,8 @@ class SpinDisplaceBondProjected:
                     vals.extend([+1.0, -1.0])
                     eqn_counter += 1
 
-        self.j_ij_const = coo_matrix((vals, (rows, cols)), 
-                                    shape=(eqn_counter, len(self.unique_pairs_mag)), dtype=float)
+        self.j_ij_const = coo_matrix(
+            (vals, (rows, cols)), shape=(eqn_counter, len(self.unique_pairs_mag)), dtype=float)
 
         ##
         rows, cols, vals = [],[],[]
@@ -601,8 +623,8 @@ class SpinDisplaceBondProjected:
                     vals.extend([+1.0, -1.0])
                     eqn_counter += 1
 
-        self.k_ij_const = coo_matrix((vals, (rows, cols)), 
-                                    shape=(eqn_counter, len(self.unique_pairs)), dtype=float)
+        self.k_ij_const = coo_matrix(
+            (vals, (rows, cols)), shape=(eqn_counter, len(self.unique_pairs)), dtype=float)
 
         ##
         rows, cols, vals = [],[],[]
@@ -624,8 +646,8 @@ class SpinDisplaceBondProjected:
                     vals.extend([+1.0, -1.0])
                     eqn_counter += 1
 
-        self.m_ijk_const = coo_matrix((vals, (rows, cols)), 
-                                    shape=(eqn_counter, len(self.unique_pairs_mag)), dtype=float)
+        self.m_ijk_const = coo_matrix(
+            (vals, (rows, cols)), shape=(eqn_counter, len(self.unique_pairs_mag)), dtype=float)
 
 class ClusterMatrix:
     def __init__(self, cluster_dict, degree):
@@ -649,10 +671,14 @@ class ClusterMatrix:
             self.idxs_ex.extend(idx)
             self.coords_ex.extend(coord)
         
-        self.vals = np.array(self.vals)
-        self.idxs_ex, self.coords_ex = np.array(self.idxs_ex, dtype=np.int32), np.array(self.coords_ex, dtype=np.int32)
+        if self.vals:
+            self.vals = np.array(self.vals)
+            self.idxs_ex, self.coords_ex = np.array(self.idxs_ex, dtype=np.int32), np.array(self.coords_ex, dtype=np.int32)
+        else:
+            self.vals = np.array([0.0])
+            self.idxs_ex, self.coords_ex = np.array(self.degree*[0], dtype=np.int32), np.array(self.degree*[0], dtype=np.int32)
 
-def get_cluster_matrices_iso(j_matrix, jp_matrix, k_matrix, uvecs):
+def get_cluster_matrices_iso(j_matrix, jp_matrix, k_matrix, uvecs, num_site, num_spin):
     # Generate cluster matrices for
     #     - isotropic Jij exchange
     #     - bond projected model (only displacements along bonds accounted for)
@@ -697,20 +723,19 @@ def get_cluster_matrices_iso(j_matrix, jp_matrix, k_matrix, uvecs):
                     value = - 2.0 * v * uvecs[cluster][dua] * uvecs[cluster][dub]
                     md_uu[(idxs, coords)] = value
     # diagonal
-    for i in range(k_matrix.shape[0]):
+    for i in range(num_site):
         for dua in range(ndispdim):
             for dub in range(ndispdim):
+                # if dua == dub:  # HACK
                 idxs = (i,i)
                 coords = (dua,dub)
                 value = 0.0
-                # FIXME: Replace todense() conversion
-                #for l,vv in enumerate(k_matrix.getrow(i).todense()):
                 for cluster,vv in k_matrix.items():
                     ii,jj = cluster[0],cluster[1]
                     if ii == i:
-                        value += 2.0 * vv * uvecs[cluster][dua] * uvecs[cluster][dub]
+                        value += 1.0 * vv * uvecs[cluster][dua] * uvecs[cluster][dub]
                     if jj == i:
-                        value += 2.0 * vv * uvecs[cluster][dua] * uvecs[cluster][dub]
+                        value += 1.0 * vv * uvecs[cluster][dua] * uvecs[cluster][dub]
                 md_uu[(idxs, coords)] = value
     
     # Define cluster matrices
@@ -720,19 +745,96 @@ def get_cluster_matrices_iso(j_matrix, jp_matrix, k_matrix, uvecs):
     
     return m_ss, m_ssu, m_uu
 
+def get_disp_forces_bond_proj(
+    j_matrix, jp_matrix, k_matrix, uvecs,
+    state_magn, state_disp):
+    
+    disp_force_array = np.zeros(np.array(state_disp).shape)
+    
+    for k in range(len(state_disp)):
+        for kl in range(3):
+        
+            for cluster in jp_matrix.keys():
+                s_ip = np.dot(
+                    state_magn[cluster[0]], 
+                    state_magn[cluster[1]])
+                del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
+                u_proj_p = (del_ik - del_jk) * uvecs[cluster][kl]
+                disp_force_array[k][kl] += jp_matrix[cluster] * s_ip * u_proj_p
+
+            for cluster in k_matrix.keys():
+                u_proj = state_disp[cluster[0]] - state_disp[cluster[1]]
+                u_proj = np.dot(u_proj, uvecs[cluster])
+                del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
+                u_proj_p = (del_ik - del_jk) * uvecs[cluster][kl]
+                disp_force_array[k][kl] += k_matrix[cluster] * 2.0 * u_proj * u_proj_p
+    
+    return disp_force_array
+
+def get_energy_bond_proj(
+    j_matrix, jp_matrix, k_matrix, uvecs,
+    state_magn, state_disp):
+    
+    e_ss, e_ssu, e_uu = 0.0, 0.0, 0.0
+    
+    for cluster in j_matrix.keys():
+        s_ip = np.dot(
+            state_magn[cluster[0]], 
+            state_magn[cluster[1]])
+        e_ss += j_matrix[cluster] * s_ip
+    
+    for cluster in jp_matrix.keys():
+        s_ip = np.dot(
+            state_magn[cluster[0]], 
+            state_magn[cluster[1]])
+        u_proj = state_disp[cluster[0]] - state_disp[cluster[1]]
+        u_proj = np.dot(u_proj, uvecs[cluster])
+        s_ip_exp = s_ip * u_proj
+        e_ssu += jp_matrix[cluster] * s_ip_exp
+    
+    for cluster in k_matrix.keys():
+        u_proj = state_disp[cluster[0]] - state_disp[cluster[1]]
+        u_proj = np.dot(u_proj, uvecs[cluster])
+        e_uu += k_matrix[cluster] * u_proj**2
+    
+    energy = e_ss + e_ssu + e_uu
+    
+    return (energy, (e_ss, e_ssu, e_uu))
+
+def get_energy_cluster(
+    m_ss, m_ssu, m_uu,
+    state_magn, state_disp):
+    
+    e_ss, e_ssu, e_uu = 0.0, 0.0, 0.0
+    
+    for idx,coord,v in zip(m_ss.idxs, m_ss.coords, m_ss.vals):
+        e_ss += v * state_magn[idx[0]][coord[0]] * state_magn[idx[1]][coord[1]]
+    
+    for idx,coord,v in zip(m_ssu.idxs, m_ssu.coords, m_ssu.vals):
+        e_ssu += v * state_magn[idx[0]][coord[0]] * state_magn[idx[1]][coord[1]] * state_disp[idx[2]][coord[2]]
+    
+    for idx,coord,v in zip(m_uu.idxs, m_uu.coords, m_uu.vals):
+        e_uu += v * state_disp[idx[0]][coord[0]] * state_disp[idx[1]][coord[1]]
+    
+    energy = e_ss + e_ssu + e_uu
+    
+    return (energy, (e_ss, e_ssu, e_uu))
+
 def get_pairwise_matrix(pairwise_dict, num_site, nx_super, structure):
     
     num_site_super = num_site * np.prod(nx_super)
     
-    # nx_lim = [nx_super[d]//2 for d in [0,1,2]]
     nx_lim = [nx_super[d] for d in [0,1,2]]
+    # nx_lim = [nx_super[d]//2 for d in [0,1,2]]
     
-    dist_lim = np.min([structure.lattice.a, structure.lattice.b, structure.lattice.c])
-    dist_lim *= 0.5
+    dist_lim = np.min(
+        np.array(nx_super) * np.array(
+            [structure.lattice.a, structure.lattice.b, structure.lattice.c]))
+    # dist_lim *= 0.5
     
     pw_matrix = {}
+    rowcols = []
     # cols, rows, vals = [], [], []
-    # rowcols = []
     
     # note: exchange values are already in eV
     for (ii,jj,image),v in pairwise_dict.items():
@@ -754,7 +856,14 @@ def get_pairwise_matrix(pairwise_dict, num_site, nx_super, structure):
                         row = get_serial_index(ii,  nn, nx_super, num_site_super)
                         col = get_serial_index(jj, img, nx_super, num_site_super)
                         
-                        pw_matrix[(row,col)] = vv
+                        key = (row,col)
+                        
+                        # pw_matrix[key] = vv
+                        
+                        if key in pw_matrix:
+                            pw_matrix[key] += vv
+                        else:
+                            pw_matrix[key] = vv
                         
                         # vals.append(vv)
                         # rows.append(row)
@@ -786,6 +895,30 @@ def get_serial_index(site_idx, nv, ndims, ns):
     nserial = nv[2] + ndims[2]*(nv[1] + ndims[1]*(nv[0] + ndims[0]*site_idx))
     # nserial = site_idx + ns*(nv[0] + ndims[0]*(nv[1] + ndims[1]*nv[2]))
     return nserial
+
+def get_super_pairwise(pw_dict, struct, nx_super):
+    
+    num_site = len(struct)
+    num_site_super = num_site * np.prod(nx_super)
+    
+    pw_dict_super = {}
+    
+    for (i,j,image),v in pw_dict.items():
+        for ni in range(nx_super[0]):
+            for nj in range(nx_super[1]):
+                for nk in range(nx_super[2]):
+                    nn = [ni, nj, nk]
+                    img = [(nn[d]+image[d])%nx_super[d] for d in [0,1,2]]
+                    row = get_serial_index(i,  nn, nx_super, num_site)
+                    col = get_serial_index(j, img, nx_super, num_site)
+                    
+                    image_super = - np.array(img, int) + np.array([nn[d]+image[d] for d in [0,1,2]], int)
+                    image_super = [image_super[d]//nx_super[d] for d in [0,1,2]]
+                    image_super = tuple(image_super)
+                    
+                    pw_dict_super[(row, col, image_super)] = v
+    
+    return pw_dict_super
 
 def get_adj_matrices(struct, nx_super):
     
