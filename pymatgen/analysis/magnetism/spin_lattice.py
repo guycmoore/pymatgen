@@ -248,13 +248,12 @@ class SpinDisplaceBondProjected:
         # # only examine NN (magnetic)
         # self.unique_pairs = self.unique_pairs_mag
 
-        self.num_params = 2 + len(self.unique_pairs_mag) + len(self.unique_pairs_mag) \
-                          + len(self.unique_pairs) + len(self.unique_pairs)
-
+        self.num_params = 2 + 2*len(self.unique_pairs_mag) + 6*len(self.unique_pairs)
+        
         print("Number of unique pairs = ", len(self.unique_pairs))
         print("Number of unique pairs (magnetic) = ", len(self.unique_pairs_mag))
         print()
-
+        
     def setup_constrained_least_squares(self):
 
         self.q_c, self.r_c, self.p_c, self.rank_c = sparseqr.qr(self.a_constr.T);
@@ -383,10 +382,49 @@ class SpinDisplaceBondProjected:
         def calc_uu_perp_deriv_u(cluster, k, kl, i):
             del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
             u_diff = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
-            u_diff_norm_deriv_u = 2.0 * (del_ik - del_jk) * u_diff[kl]
+            uu_diff_deriv_u = 2.0 * (del_ik - del_jk) * u_diff[kl]
             uu_para_deriv_u = calc_uu_para_deriv_u(cluster, k, kl, i)
-            uu_perp_deriv_u = u_diff_norm_deriv_u - uu_para_deriv_u
+            uu_perp_deriv_u = uu_diff_deriv_u - uu_para_deriv_u
             return uu_perp_deriv_u
+        
+        def calc_uuu_para_deriv_u(cluster, k, kl, i):
+            # portion identical to calc_uu_para_deriv_u
+            u_para = calc_uu_para(cluster, i)
+            del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
+            u_diff = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
+            u_para = np.dot(u_diff, self.uvecs[cluster])
+            u_para_deriv_u = (del_ik - del_jk) * self.uvecs[cluster][kl]
+            uu_para_deriv_u = 2.0 * u_para * u_para_deriv_u
+            # product rule trick
+            uuu_para_deriv_u = uu_para_deriv_u * u_para + u_para**2 * u_para_deriv_u
+            return uuu_para_deriv_u
+        
+        def calc_uuu_perp_deriv_u(cluster, k, kl, i):
+            # Note: caveat here, not exactly 3rd-order in perp.!
+            # portion identical to calc_uu_perp_deriv_u
+            del_ik, del_jk = int(cluster[0]==k), int(cluster[1]==k)
+            u_diff = self.states_disp[i][cluster[0]] - self.states_disp[i][cluster[1]]
+            uu_diff_deriv_u = 2.0 * (del_ik - del_jk) * u_diff[kl]
+            uu_para_deriv_u = calc_uu_para_deriv_u(cluster, k, kl, i)
+            uu_perp_deriv_u = uu_diff_deriv_u - uu_para_deriv_u
+            # product rule trick
+            uu_perp = calc_uu_perp(cluster, i)
+            u_para = np.dot(u_diff, self.uvecs[cluster])
+            u_para_deriv_u = (del_ik - del_jk) * self.uvecs[cluster][kl]
+            uuu_perp_deriv_u = uu_perp_deriv_u * u_para + uu_perp * u_para_deriv_u
+            return uuu_perp_deriv_u
+        
+        def calc_uuuu_para_deriv_u(cluster, k, kl, i):
+            uu_para = calc_uu_para(cluster, i)
+            uu_para_deriv_u = calc_uu_para_deriv_u(cluster, k, kl, i)
+            uuuu_para_deriv_u = 2.0 * (uu_para * uu_para_deriv_u)
+            return uuuu_para_deriv_u
+        
+        def calc_uuuu_perp_deriv_u(cluster, k, kl, i):
+            uu_perp = calc_uu_perp(cluster, i)
+            uu_perp_deriv_u = calc_uu_perp_deriv_u(cluster, k, kl, i)
+            uuuu_perp_deriv_u = 2.0 * uu_perp * uu_perp_deriv_u
+            return uuuu_perp_deriv_u
         
         ####################################
         
@@ -512,6 +550,34 @@ class SpinDisplaceBondProjected:
                             vals.append(uu_perp_deriv_u)
                             rows.append(eqn_counter)
                             cols.append(n)
+                    for cluster in self.unique_pairs:
+                        n += 1
+                        if k in cluster:
+                            uuu_para_deriv_u = calc_uuu_para_deriv_u(cluster, k, kl, i)
+                            vals.append(uuu_para_deriv_u)
+                            rows.append(eqn_counter)
+                            cols.append(n)
+                    for cluster in self.unique_pairs:
+                        n += 1
+                        if k in cluster:
+                            uuu_perp_deriv_u = calc_uuu_perp_deriv_u(cluster, k, kl, i)
+                            vals.append(uuu_perp_deriv_u)
+                            rows.append(eqn_counter)
+                            cols.append(n)
+                    for cluster in self.unique_pairs:
+                        n += 1
+                        if k in cluster:
+                            uuuu_para_deriv_u = calc_uuuu_para_deriv_u(cluster, k, kl, i)
+                            vals.append(uuuu_para_deriv_u)
+                            rows.append(eqn_counter)
+                            cols.append(n)
+                    for cluster in self.unique_pairs:
+                        n += 1
+                        if k in cluster:
+                            uuuu_perp_deriv_u = calc_uuuu_perp_deriv_u(cluster, k, kl, i)
+                            vals.append(uuuu_perp_deriv_u)
+                            rows.append(eqn_counter)
+                            cols.append(n)
                     eqn_counter += 1
 
         row_len, col_len = eqn_counter, self.num_params
@@ -610,11 +676,9 @@ class SpinDisplaceBondProjected:
         rows.extend(self.m_ijk_const.row + row_len)
         row_len += self.m_ijk_const.get_shape()[0]
         #
-        rows.extend(self.k_ij_const.row + row_len)
-        row_len += self.k_ij_const.get_shape()[0]
-        #
-        rows.extend(self.k_ij_const.row + row_len)
-        row_len += self.k_ij_const.get_shape()[0]
+        for i in [0,1,2,3,4,5]:
+            rows.extend(self.k_ij_const.row + row_len)
+            row_len += self.k_ij_const.get_shape()[0]
 
         ##
         col_len = 0
@@ -624,17 +688,15 @@ class SpinDisplaceBondProjected:
         cols.extend(self.m_ijk_const.col + col_len)
         col_len += self.m_ijk_const.get_shape()[1]
         #
-        cols.extend(self.k_ij_const.col + col_len)
-        col_len += self.k_ij_const.get_shape()[1]
-        #
-        cols.extend(self.k_ij_const.col + col_len)
-        col_len += self.k_ij_const.get_shape()[1]
+        for i in [0,1,2,3,4,5]:
+            cols.extend(self.k_ij_const.col + col_len)
+            col_len += self.k_ij_const.get_shape()[1]
 
         ##
         vals.extend(self.j_ij_const.data)
         vals.extend(self.m_ijk_const.data)
-        vals.extend(self.k_ij_const.data)
-        vals.extend(self.k_ij_const.data)
+        for i in [0,1,2,3,4,5]:
+            vals.extend(self.k_ij_const.data)
 
         # set to number of parameters (including scalars)
         col_len = self.num_params
