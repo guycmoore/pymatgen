@@ -6,21 +6,21 @@
 Modules for working with wannier90 input and output.
 """
 
-from typing import Sequence
-
 import numpy as np
-# from scipy.io import FortranEOFError, FortranFile
+# # from scipy.io import FortranEOFError, FortranFile
 
-import abc
+# import abc
 from typing import Dict, Any, Tuple, Sequence, Union
 
-from monty.io import zopen
+# from monty.io import zopen
 from monty.json import MontyDecoder, MSONable
-from monty.os import cd
-from monty.os.path import zpath
-from monty.serialization import loadfn
+# from monty.os import cd
+# from monty.os.path import zpath
+# from monty.serialization import loadfn
 
-from pymatgen.util.typing import PathLike, ArrayLike
+from pymatgen.core import Structure
+# from pymatgen.util.typing import PathLike, ArrayLike
+from pymatgen.util.string import str_delimited
 
 
 __author__ = "Mark Turiansky"
@@ -30,6 +30,77 @@ __maintainer__ = "Shyue Ping Ong"
 __email__ = "shyuep@gmail.com"
 __status__ = "Production"
 __date__ = "Jun 04, 2020"
+
+
+class Wannier90win(dict, MSONable):
+    """
+    Heavily based on Incar class
+    """
+
+    def __init__(self, params: Dict[str, Any] = None, structure: Structure = None):
+        """
+        """
+        super().__init__()
+
+        if params:
+            self.update(params)
+
+        if structure:
+            self.structure = structure.copy()
+
+    def get_lines_for_projections(self):
+        """
+        Orbital-like valence projections
+        """
+
+        num_projections = 0
+        lines = []
+        lines.append("begin projections")
+
+        ang_mom_dict = {"s":0, "p":1, "d":2, "f":3}
+
+        for site in self.structure:
+
+            f_coords = site.frac_coords.copy()
+
+            l_quant_num = ang_mom_dict[site.specie.block]
+            num_ml = 2 * l_quant_num + 1
+
+            for ml_shift in range(num_ml):
+
+                line = "f=%.6f,%.6f,%.6f: l=%i, mr=%i"%(
+                    f_coords[0], f_coords[1], f_coords[2],
+                    l_quant_num, ml_shift+1,
+                )
+                lines.append(line)
+
+                num_projections += 1
+
+        self.num_projections = num_projections
+        lines.append("end projections")
+
+        return lines
+
+    def get_string(self) -> str:
+        """
+        """
+
+        lines_proj = self.get_lines_for_projections()
+        self["num_wann"] = self.num_projections
+
+        keys = list(self)
+        lines_header = []
+
+        for k in keys:
+
+            lines_header.append([k, self[k]])
+
+        str_header = str_delimited(lines_header, None, " = ") + "\n" + "\n"
+        str_projections = str_delimited([[l] for l in lines_proj], None, "") + "\n"
+
+        str_full = str_header+str_projections
+
+        return str_full
 
 
 # class Wannier90Input(dict, MSONable):
