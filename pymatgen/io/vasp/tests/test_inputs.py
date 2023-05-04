@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -14,6 +13,7 @@ import scipy.constants as const
 from monty.io import zopen
 from monty.tempfile import ScratchDir
 
+from pymatgen.core import SETTINGS
 from pymatgen.core.composition import Composition
 from pymatgen.core.structure import Structure
 from pymatgen.electronic_structure.core import Magmom
@@ -182,7 +182,7 @@ cart
 
     def test_significant_figures(self):
         si = 14
-        coords = list()
+        coords = []
         coords.append([0, 0, 0])
         coords.append([0.75, 0.5, 0.75])
 
@@ -211,7 +211,7 @@ direct
 
     def test_str(self):
         si = 14
-        coords = list()
+        coords = []
         coords.append([0, 0, 0])
         coords.append([0.75, 0.5, 0.75])
 
@@ -328,7 +328,7 @@ direct
 
     def test_velocities(self):
         si = 14
-        coords = list()
+        coords = []
         coords.append([0, 0, 0])
         coords.append([0.75, 0.5, 0.75])
 
@@ -381,12 +381,10 @@ class IncarTest(PymatgenTest):
         self.assertEqual(type(incar["LORBIT"]), int)
 
     def test_diff(self):
-        incar = self.incar
         filepath1 = PymatgenTest.TEST_FILES_DIR / "INCAR"
         incar1 = Incar.from_file(filepath1)
         filepath2 = PymatgenTest.TEST_FILES_DIR / "INCAR.2"
         incar2 = Incar.from_file(filepath2)
-        filepath3 = PymatgenTest.TEST_FILES_DIR / "INCAR.3"
         incar3 = Incar.from_file(filepath2)
         self.assertEqual(
             incar1.diff(incar2),
@@ -588,8 +586,8 @@ TIME       =  0.4"""
         magmom2 = [-1, -1, -1, 0, 0, 0, 0, 0]
         magmom4 = [Magmom([1.0, 2.0, 2.0])]
 
-        ans_string1 = "LANGEVIN_GAMMA = 10 10 10\nLSORBIT = True\n" "MAGMOM = 0.0 0.0 3.0 0 1 0 2 1 2\n"
-        ans_string2 = "LANGEVIN_GAMMA = 10\nLSORBIT = True\n" "MAGMOM = 3*3*-1 3*5*0\n"
+        ans_string1 = "LANGEVIN_GAMMA = 10 10 10\nLSORBIT = True\nMAGMOM = 0.0 0.0 3.0 0 1 0 2 1 2\n"
+        ans_string2 = "LANGEVIN_GAMMA = 10\nLSORBIT = True\nMAGMOM = 3*3*-1 3*5*0\n"
         ans_string3 = "LSORBIT = False\nMAGMOM = 2*-1 2*9\n"
         ans_string4_nolsorbit = "LANGEVIN_GAMMA = 10\nLSORBIT = False\nMAGMOM = 1*3.0\n"
         ans_string4_lsorbit = "LANGEVIN_GAMMA = 10\nLSORBIT = True\nMAGMOM = 1.0 2.0 2.0\n"
@@ -674,7 +672,7 @@ SIGMA = 0.1"""
 
     def test_check_params(self):
         # Triggers warnings when running into nonsensical parameters
-        with self.assertWarns(BadIncarWarning) as cm:
+        with self.assertWarns(BadIncarWarning):
             incar = Incar(
                 {
                     "ADDGRID": True,
@@ -937,15 +935,14 @@ class PotcarSingleTest(PymatgenTest):
     def test_identify_potcar(self):
         filename = PymatgenTest.TEST_FILES_DIR / "POT_GGA_PAW_PBE_54" / "POTCAR.Fe.gz"
 
-        with pytest.warns(None) as warning:
+        with pytest.warns(None):
             psingle = PotcarSingle.from_file(filename)
         assert "PBE_54" in psingle.identify_potcar()[0]
-        assert not warning
         assert "Fe" in psingle.identify_potcar()[1]
 
     def test_potcar_hash_warning(self):
         filename = PymatgenTest.TEST_FILES_DIR / "modified_potcars_data" / "POT_GGA_PAW_PBE" / "POTCAR.Fe_pv"
-        with pytest.warns(UnknownPotcarWarning, match="integrity"):
+        with pytest.warns(UnknownPotcarWarning, match="incomplete"):
             PotcarSingle.from_file(filename)
 
     def test_potcar_file_hash_warning(self):
@@ -964,8 +961,8 @@ class PotcarSingleTest(PymatgenTest):
 
 class PotcarTest(PymatgenTest):
     def setUp(self):
-        if "PMG_VASP_PSP_DIR" not in os.environ:
-            os.environ["PMG_VASP_PSP_DIR"] = str(PymatgenTest.TEST_FILES_DIR)
+        if "PMG_VASP_PSP_DIR" not in SETTINGS:
+            SETTINGS["PMG_VASP_PSP_DIR"] = str(PymatgenTest.TEST_FILES_DIR)
         filepath = PymatgenTest.TEST_FILES_DIR / "POTCAR"
         self.potcar = Potcar.from_file(filepath)
 
@@ -980,7 +977,7 @@ class PotcarTest(PymatgenTest):
         # code just grabs the POTCAR from the config file (the config file would
         # grab the V POTCAR)
         potcar = Potcar(["V"], sym_potcar_map={"V": fe_potcar})
-        self.assertEqual(potcar.symbols, ["Fe_pv"], "Wrong symbols read in " "for POTCAR")
+        self.assertEqual(potcar.symbols, ["Fe_pv"], "Wrong symbols read in for POTCAR")
 
     def test_to_from_dict(self):
         d = self.potcar.as_dict()
@@ -1054,7 +1051,7 @@ class VaspInputTest(PymatgenTest):
         # To add some test.
         with ScratchDir(".") as d:
             self.vinput.run_vasp(d, vasp_cmd=["cat", "INCAR"])
-            with open(os.path.join(d, "vasp.out"), "r") as f:
+            with open(os.path.join(d, "vasp.out")) as f:
                 output = f.read()
                 self.assertEqual(output.split("\n")[0], "ALGO = Damped")
 

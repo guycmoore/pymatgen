@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 """
@@ -113,8 +112,8 @@ class AbinitTimerParser(collections.abc.Iterable):
         read_ok = []
         for fname in filenames:
             try:
-                fh = open(fname)
-            except IOError:
+                fh = open(fname)  # pylint: disable=R1732
+            except OSError:
                 logger.warning("Cannot open file %s" % fname)
                 continue
 
@@ -123,7 +122,7 @@ class AbinitTimerParser(collections.abc.Iterable):
                 read_ok.append(fname)
 
             except self.Error as e:
-                logger.warning("exception while parsing file %s:\n%s" % (fname, str(e)))
+                logger.warning(f"exception while parsing file {fname}:\n{str(e)}")
                 continue
 
             finally:
@@ -163,7 +162,7 @@ class AbinitTimerParser(collections.abc.Iterable):
 
                 info["fname"] = fname
                 for tok in line.split(","):
-                    key, val = [s.strip() for s in tok.split("=")]
+                    key, val = (s.strip() for s in tok.split("="))
                     info[key] = val
 
             elif line.startswith(self.END_TAG):
@@ -177,9 +176,9 @@ class AbinitTimerParser(collections.abc.Iterable):
                 line = line[1:].strip()
 
                 if inside == 2:
-                    d = dict()
+                    d = {}
                     for tok in line.split(","):
-                        key, val = [s.strip() for s in tok.split("=")]
+                        key, val = (s.strip() for s in tok.split("="))
                         d[key] = float(val)
                     cpu_time, wall_time = d["cpu_time"], d["wall_time"]
 
@@ -532,7 +531,7 @@ class ParallelEfficiency(dict):
         data = []
         for (sect_name, peff) in self.items():
             # Ignore values where we had a division by zero.
-            if all([v != -1 for v in peff[key]]):
+            if all(v != -1 for v in peff[key]):
                 values = peff[key][:]
                 # print(sect_name, values)
                 if len(values) > 1:
@@ -542,7 +541,7 @@ class ParallelEfficiency(dict):
                 data.append((sect_name, self.estimator(values)))
 
         data.sort(key=lambda t: t[1], reverse=reverse)
-        return tuple([sect_name for (sect_name, e) in data])
+        return tuple(sect_name for (sect_name, e) in data)
 
     def totable(self, stop=None, reverse=True):
         """
@@ -624,7 +623,7 @@ class AbinitTimerSection:
 
     def to_tuple(self):
         """Convert object to tuple."""
-        return tuple([self.__dict__[at] for at in AbinitTimerSection.FIELDS])
+        return tuple(self.__dict__[at] for at in AbinitTimerSection.FIELDS)
 
     def to_dict(self):
         """Convert object to dictionary."""
@@ -661,7 +660,7 @@ class AbinitTimer:
         """
         # Store sections and names
         self.sections = tuple(sections)
-        self.section_names = tuple([s.name for s in self.sections])
+        self.section_names = tuple(s.name for s in self.sections)
 
         self.info = info
         self.cpu_time = float(cpu_time)
@@ -701,7 +700,7 @@ class AbinitTimer:
         openclose = is_string(fileobj)
 
         if openclose:
-            fileobj = open(fileobj, "w")
+            fileobj = open(fileobj, "w")  # pylint: disable=R1732
 
         for idx, section in enumerate(self.sections):
             fileobj.write(section.to_csvline(with_header=(idx == 0)))

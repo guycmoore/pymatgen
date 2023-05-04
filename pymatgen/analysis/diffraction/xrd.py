@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -128,11 +127,13 @@ class XRDCalculator(AbstractDiffractionPatternCalculator):
                 specification of Debye-Waller factors. Note that these
                 factors are temperature dependent.
         """
-        if isinstance(wavelength, float):
+        if isinstance(wavelength, (float, int)):
             self.wavelength = wavelength
-        else:
+        elif isinstance(wavelength, str):
             self.radiation = wavelength
             self.wavelength = WAVELENGTHS[wavelength]
+        else:
+            raise TypeError("'wavelength' must be either of: float, int or str")
         self.symprec = symprec
         self.debye_waller_factors = debye_waller_factors or {}
 
@@ -271,7 +272,7 @@ class XRDCalculator(AbstractDiffractionPatternCalculator):
                     two_thetas.append(two_theta)
 
         # Scale intensities so that the max intensity is 100.
-        max_intensity = max([v[0] for v in peaks.values()])
+        max_intensity = max(v[0] for v in peaks.values())
         x = []
         y = []
         hkls = []

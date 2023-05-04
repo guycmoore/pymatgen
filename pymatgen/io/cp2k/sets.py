@@ -152,27 +152,27 @@ class Cp2kInputSet(Cp2kInput):
 
         # Insert atom kinds by identifying the unique sites (unique element and site properties)
         unique_kinds = get_unique_site_indices(structure)
-        for k in unique_kinds.keys():
+        for k, v in unique_kinds.items():
             kind = k.split("_")[0]
             kwargs = {}
             if "magmom" in self.structure.site_properties:
-                kwargs["magnetization"] = self.structure.site_properties["magmom"][unique_kinds[k][0]]
+                kwargs["magnetization"] = self.structure.site_properties["magmom"][v[0]]
 
             if "ghost" in self.structure.site_properties:
-                kwargs["ghost"] = self.structure.site_properties["ghost"][unique_kinds[k][0]]
+                kwargs["ghost"] = self.structure.site_properties["ghost"][v[0]]
 
             if "basis_set" in self.structure.site_properties:
-                basis_set = self.structure.site_properties["basis_set"][unique_kinds[k][0]]
+                basis_set = self.structure.site_properties["basis_set"][v[0]]
             else:
                 basis_set = basis_and_potential[kind]["basis"]
 
             if "potential" in self.structure.site_properties:
-                potential = self.structure.site_properties["potential"][unique_kinds[k][0]]
+                potential = self.structure.site_properties["potential"][v[0]]
             else:
                 potential = basis_and_potential[kind]["potential"]
 
             if "aux_basis" in self.structure.site_properties:
-                kwargs["aux_basis"] = self.structure.site_properties["aux_basis"][unique_kinds[k][0]]
+                kwargs["aux_basis"] = self.structure.site_properties["aux_basis"][v[0]]
 
             subsys.insert(Kind(kind, alias=k, basis_set=basis_set, potential=potential, **kwargs))
         coord = Coord(structure, aliases=unique_kinds)
@@ -410,7 +410,7 @@ class DftSet(Cp2kInputSet):
         if not self.check("FORCE_EVAL/DFT/PRINT/PDOS"):
             self["FORCE_EVAL"]["DFT"]["PRINT"].insert(PDOS(nlumo=nlumo))
         for i in range(self.structure.num_sites):
-            self["FORCE_EVAL"]["DFT"]["PRINT"]["PDOS"].insert(LDOS(i + 1, alias="LDOS {}".format(i + 1), verbose=False))
+            self["FORCE_EVAL"]["DFT"]["PRINT"]["PDOS"].insert(LDOS(i + 1, alias=f"LDOS {i + 1}", verbose=False))
 
     def print_mo_cubes(self, write_cube=False, nlumo=-1, nhomo=-1):
         """
@@ -681,9 +681,9 @@ class DftSet(Cp2kInputSet):
         }
         self["FORCE_EVAL"]["DFT"].insert(Section("POISSON", subsections={}, keywords=kwds))
         if not self.check("FORCE_EVAL/SUBSYS/CELL"):
-            x = max([s.coords[0] for s in self.structure.sites])
-            y = max([s.coords[1] for s in self.structure.sites])
-            z = max([s.coords[2] for s in self.structure.sites])
+            x = max(s.coords[0] for s in self.structure.sites)
+            y = max(s.coords[1] for s in self.structure.sites)
+            z = max(s.coords[2] for s in self.structure.sites)
             self["FORCE_EVAL"]["SUBSYS"].insert(Cell(lattice=Lattice([[x, 0, 0], [0, y, 0], [0, 0, z]])))
         self["FORCE_EVAL"]["SUBSYS"]["CELL"].add(Keyword("PERIODIC", "NONE"))
 

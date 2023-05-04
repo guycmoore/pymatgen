@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -133,7 +132,7 @@ DERIVED_UNITS = {
 }
 
 ALL_UNITS = dict(list(BASE_UNITS.items()) + list(DERIVED_UNITS.items()))  # type: ignore
-SUPPORTED_UNIT_NAMES = tuple([i for d in ALL_UNITS.values() for i in d.keys()])
+SUPPORTED_UNIT_NAMES = tuple(i for d in ALL_UNITS.values() for i in d.keys())
 
 # Mapping unit name --> unit type (unit names must be unique).
 _UNAME2UTYPE = {}  # type: ignore
@@ -158,8 +157,8 @@ class UnitError(BaseException):
 def _check_mappings(u):
     for v in DERIVED_UNITS.values():
         for k2, v2 in v.items():
-            if all([v2.get(ku, 0) == vu for ku, vu in u.items()]) and all(
-                [u.get(kv2, 0) == vv2 for kv2, vv2 in v2.items()]
+            if all(v2.get(ku, 0) == vu for ku, vu in u.items()) and all(
+                u.get(kv2, 0) == vv2 for kv2, vv2 in v2.items()
             ):
                 return {k2: 1}
     return u
@@ -235,7 +234,7 @@ class Unit(collections.abc.Mapping):
     def __repr__(self):
         sorted_keys = sorted(self._unit.keys(), key=lambda k: (-self._unit[k], k))
         return " ".join(
-            ["{}^{}".format(k, self._unit[k]) if self._unit[k] != 1 else k for k in sorted_keys if self._unit[k] != 0]
+            [f"{k}^{self._unit[k]}" if self._unit[k] != 1 else k for k in sorted_keys if self._unit[k] != 0]
         )
 
     def __str__(self):
@@ -285,7 +284,7 @@ class Unit(collections.abc.Mapping):
         factor = ofactor / nfactor
         for uo, un in zip(units_old, units_new):
             if uo[1] != un[1]:
-                raise UnitError("Units %s and %s are not compatible!" % (uo, un))
+                raise UnitError(f"Units {uo} and {un} are not compatible!")
             c = ALL_UNITS[_UNAME2UTYPE[uo[0]]]
             factor *= (c[uo[0]] / c[un[0]]) ** uo[1]
         return factor
@@ -356,7 +355,7 @@ class FloatWithUnit(float):
             unit_type (str): A type of unit. E.g., "charge"
         """
         if unit_type is not None and str(unit) not in ALL_UNITS[unit_type]:
-            raise UnitError("{} is not a supported unit for {}".format(unit, unit_type))
+            raise UnitError(f"{unit} is not a supported unit for {unit_type}")
         self._unit = Unit(unit)
         self._unit_type = unit_type
 
@@ -365,7 +364,7 @@ class FloatWithUnit(float):
 
     def __str__(self):
         s = super().__str__()
-        return "{} {}".format(s, self._unit)
+        return f"{s} {self._unit}"
 
     def __add__(self, other):
         if not hasattr(other, "unit_type"):
@@ -560,15 +559,15 @@ class ArrayWithUnit(np.ndarray):
         self._unit = state["_unit"]
 
     def __repr__(self):
-        return "{} {}".format(np.array(self).__repr__(), self.unit)
+        return f"{np.array(self).__repr__()} {self.unit}"
 
     def __str__(self):
-        return "{} {}".format(np.array(self).__str__(), self.unit)
+        return f"{np.array(self).__str__()} {self.unit}"
 
     def __add__(self, other):
         if hasattr(other, "unit_type"):
             if other.unit_type != self.unit_type:
-                raise UnitError("Adding different types of units is" " not allowed")
+                raise UnitError("Adding different types of units is not allowed")
 
             if other.unit != self.unit:
                 other = other.to(self.unit)

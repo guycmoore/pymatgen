@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -138,7 +137,7 @@ class EnumlibAdaptor:
         """
         # Create a temporary directory for working.
         with ScratchDir(".") as d:
-            logger.debug("Temp dir : {}".format(d))
+            logger.debug(f"Temp dir : {d}")
             # Generate input files
             self._gen_input_file()
             # Perform the actual enumeration
@@ -194,18 +193,18 @@ class EnumlibAdaptor:
                     # Let us first make add a dummy element for every single
                     # site whose total occupancies don't sum to 1.
                     species[DummySpecies("X")] = 1 - sum(species.values())
-                for sp in species.keys():
+                for sp, amt in species.items():
                     if sp not in index_species:
                         index_species.append(sp)
                         sp_label.append(len(index_species) - 1)
-                        index_amounts.append(species[sp] * len(sites))
+                        index_amounts.append(amt * len(sites))
                     else:
                         ind = index_species.index(sp)
                         sp_label.append(ind)
-                        index_amounts[ind] += species[sp] * len(sites)
-                sp_label = "/".join(["{}".format(i) for i in sorted(sp_label)])
+                        index_amounts[ind] += amt * len(sites)
+                sp_label = "/".join([f"{i}" for i in sorted(sp_label)])
                 for site in sites:
-                    coord_str.append("{} {}".format(coord_format.format(*site.coords), sp_label))
+                    coord_str.append(f"{coord_format.format(*site.coords)} {sp_label}")
                 disordered_sites.append(sites)
 
         def get_sg_info(ss):
@@ -232,7 +231,7 @@ class EnumlibAdaptor:
                     index_amounts.append(len(sites))
                     sp_label = len(index_species) - 1
                     for site in sites:
-                        coord_str.append("{} {}".format(coord_format.format(*site.coords), sp_label))
+                        coord_str.append(f"{coord_format.format(*site.coords)} {sp_label}")
                     disordered_sites.append(sites)
                     curr_sites = temp_sites
                     sgnum = new_sgnum
@@ -253,11 +252,11 @@ class EnumlibAdaptor:
         output.append("%d" % len(coord_str))
         output.extend(coord_str)
 
-        output.append("{} {}".format(self.min_cell_size, self.max_cell_size))
+        output.append(f"{self.min_cell_size} {self.max_cell_size}")
         output.append(str(self.enum_precision_parameter))
         output.append("full")
 
-        ndisordered = sum([len(s) for s in disordered_sites])
+        ndisordered = sum(len(s) for s in disordered_sites)
         base = int(
             ndisordered
             * lcm(
@@ -283,10 +282,10 @@ class EnumlibAdaptor:
             conc = amt / total_amounts
 
             if abs(conc * base - round(conc * base)) < 1e-5:
-                output.append("{} {} {}".format(int(round(conc * base)), int(round(conc * base)), base))
+                output.append(f"{int(round(conc * base))} {int(round(conc * base))} {base}")
             else:
                 min_conc = int(math.floor(conc * base))
-                output.append("{} {} {}".format(min_conc - 1, min_conc + 1, base))
+                output.append(f"{min_conc - 1} {min_conc + 1} {base}")
         output.append("")
         logger.debug("Generated input file:\n{}".format("\n".join(output)))
         with open("struct_enum.in", "w") as f:
@@ -294,27 +293,26 @@ class EnumlibAdaptor:
 
     def _run_multienum(self):
 
-        p = subprocess.Popen([enum_cmd], stdout=subprocess.PIPE, stdin=subprocess.PIPE, close_fds=True)
+        with subprocess.Popen([enum_cmd], stdout=subprocess.PIPE, stdin=subprocess.PIPE, close_fds=True) as p:
+            if self.timeout:
 
-        if self.timeout:
+                timed_out = False
+                timer = Timer(self.timeout * 60, lambda p: p.kill(), [p])
 
-            timed_out = False
-            timer = Timer(self.timeout * 60, lambda p: p.kill(), [p])
+                try:
+                    timer.start()
+                    output = p.communicate()[0].decode("utf-8")
+                finally:
+                    if not timer.is_alive():
+                        timed_out = True
+                    timer.cancel()
 
-            try:
-                timer.start()
+                if timed_out:
+                    raise TimeoutError("Enumeration took too long.")
+
+            else:
+
                 output = p.communicate()[0].decode("utf-8")
-            finally:
-                if not timer.is_alive():
-                    timed_out = True
-                timer.cancel()
-
-            if timed_out:
-                raise TimeoutError("Enumeration took too long.")
-
-        else:
-
-            output = p.communicate()[0].decode("utf-8")
 
         count = 0
         start_count = False
@@ -323,7 +321,7 @@ class EnumlibAdaptor:
                 start_count = True
             elif start_count and re.match(r"\d+\s+.*", line.strip()):
                 count = int(line.split()[-1])
-        logger.debug("Enumeration resulted in {} structures".format(count))
+        logger.debug(f"Enumeration resulted in {count} structures")
         return count
 
     def _get_structures(self, num_structs):
@@ -334,13 +332,13 @@ class EnumlibAdaptor:
         else:
             options = ["struct_enum.out", str(0), str(num_structs - 1)]
 
-        rs = subprocess.Popen(
+        with subprocess.Popen(
             [makestr_cmd] + options,
             stdout=subprocess.PIPE,
             stdin=subprocess.PIPE,
             close_fds=True,
-        )
-        stdout, stderr = rs.communicate()
+        ) as rs:
+            stdout, stderr = rs.communicate()
         if stderr:
             logger.warning(stderr.decode())
 
@@ -389,7 +387,7 @@ class EnumlibAdaptor:
                 if len(self.ordered_sites) > 0:
                     transformation = np.dot(new_latt.matrix, inv_org_latt)
                     transformation = [[int(round(cell)) for cell in row] for row in transformation]
-                    logger.debug("Supercell matrix: {}".format(transformation))
+                    logger.debug(f"Supercell matrix: {transformation}")
                     s = ordered_structure * transformation
                     sites.extend([site.to_unit_cell() for site in s])
                     super_latt = sites[-1].lattice
@@ -411,7 +409,7 @@ class EnumlibAdaptor:
                         logger.debug("Skipping sites that include species X.")
                 structs.append(Structure.from_sites(sorted(sites)))
 
-        logger.debug("Read in a total of {} structures.".format(num_structs))
+        logger.debug(f"Read in a total of {num_structs} structures.")
         return structs
 
 

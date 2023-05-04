@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 """
@@ -7,7 +6,6 @@ This module provides utility classes for string operations.
 import re
 from fractions import Fraction
 
-from monty.dev import deprecated
 
 SUBSCRIPT_UNICODE = {
     "0": "₀",
@@ -36,6 +34,10 @@ SUPERSCRIPT_UNICODE = {
     "+": "⁺",
     "-": "⁻",
 }
+
+# TODO: make standalone functions in this module use the same implementation as Stringify
+# Note: previous deprecations of standalone functions in this module were removed due to
+# a community need.
 
 
 class Stringify:
@@ -138,14 +140,40 @@ def formula_double_format(afloat, ignore_ones=True, tol=1e-8):
     return str(round(afloat, 8))
 
 
-@deprecated(
-    message="These methods have been deprecated in favor of using the Stringify mix-in class, which provides"
-    "to_latex_string, to_unicode_string, etc. They will be removed in v2022."
-)
+def charge_string(charge, brackets=True, explicit_one=True):
+    """
+    Returns a string representing the charge of an Ion. By default, the
+    charge is placed in brackets with the sign preceding the magnitude, e.g.,
+    '[+2]'. For uncharged species, the string returned is '(aq)'
+
+    Args:
+        brackets: whether to enclose the charge in brackets, e.g. [+2]. Default: True
+        explicit_one: whether to include the number one for monovalent ions, e.g.
+            +1 rather than +. Default: True
+    """
+    if charge > 0:
+        chg_str = f"+{formula_double_format(charge, False)}"
+    elif charge < 0:
+        chg_str = f"-{formula_double_format(abs(charge), False)}"
+    else:
+        chg_str = "(aq)"
+
+    if chg_str in ["+1", "-1"] and not explicit_one:
+        chg_str = chg_str.replace("1", "")
+
+    if chg_str != "(aq)" and brackets:
+        chg_str = "[" + chg_str + "]"
+
+    return chg_str
+
+
 def latexify(formula):
     """
     Generates a LaTeX formatted formula. E.g., Fe2O3 is transformed to
     Fe$_{2}$O$_{3}$.
+
+    Note that Composition now has a to_latex_string() method that may
+    be used instead.
 
     Args:
         formula (str): Input formula.
@@ -156,14 +184,13 @@ def latexify(formula):
     return re.sub(r"([A-Za-z\(\)])([\d\.]+)", r"\1$_{\2}$", formula)
 
 
-@deprecated(
-    message="These methods have been deprecated in favor of using the Stringify mix-in class, which provides"
-    "to_latex_string, to_unicode_string, etc. They will be removed in v2022."
-)
 def htmlify(formula):
     """
     Generates a HTML formatted formula, e.g. Fe2O3 is transformed to
     Fe<sub>2</sub>O</sub>3</sub>
+
+    Note that Composition now has a to_html_string() method that may
+    be used instead.
 
     :param formula:
     :return:
@@ -171,14 +198,13 @@ def htmlify(formula):
     return re.sub(r"([A-Za-z\(\)])([\d\.]+)", r"\1<sub>\2</sub>", formula)
 
 
-@deprecated(
-    message="These methods have been deprecated in favor of using the Stringify mix-in class, which provides"
-    "to_latex_string, to_unicode_string, etc. They will be removed in v2022."
-)
 def unicodeify(formula):
     """
     Generates a formula with unicode subscripts, e.g. Fe2O3 is transformed
     to Fe₂O₃. Does not support formulae with decimal points.
+
+    Note that Composition now has a to_unicode_string() method that may
+    be used instead.
 
     :param formula:
     :return:
@@ -193,14 +219,13 @@ def unicodeify(formula):
     return formula
 
 
-@deprecated(
-    message="These methods have been deprecated in favor of using the Stringify mix-in class, which provides"
-    "to_latex_string, to_unicode_string, etc. They will be removed in v2022."
-)
 def latexify_spacegroup(spacegroup_symbol):
     r"""
     Generates a latex formatted spacegroup. E.g., P2_1/c is converted to
     P2$_{1}$/c and P-1 is converted to P$\\overline{1}$.
+
+    Note that SymmetryGroup now has a to_latex_string() method that may
+    be called instead.
 
     Args:
         spacegroup_symbol (str): A spacegroup symbol
@@ -212,14 +237,13 @@ def latexify_spacegroup(spacegroup_symbol):
     return re.sub(r"-(\d)", r"$\\overline{\1}$", sym)
 
 
-@deprecated(
-    message="These methods have been deprecated in favor of using the Stringify mix-in class, which provides"
-    "to_latex_string, to_unicode_string, etc. They will be removed in v2022."
-)
 def unicodeify_spacegroup(spacegroup_symbol):
     r"""
     Generates a unicode formatted spacegroup. E.g., P2$_{1}$/c is converted to
     P2₁/c and P$\\overline{1}$ is converted to P̅1.
+
+    Note that SymmetryGroup now has a to_unicode_string() method that
+    may be called instead.
 
     Args:
         spacegroup_symbol (str): A spacegroup symbol as LaTeX
@@ -248,14 +272,13 @@ def unicodeify_spacegroup(spacegroup_symbol):
     return symbol
 
 
-@deprecated(
-    message="These methods have been deprecated in favor of using the Stringify mix-in class, which provides"
-    "to_latex_string, to_unicode_string, etc. They will be removed in v2022."
-)
 def unicodeify_species(specie_string):
     r"""
     Generates a unicode formatted species string, with appropriate
     superscripts for oxidation states.
+
+    Note that Species now has a to_unicode_string() method that
+    may be used instead.
 
     Args:
         specie_string (str): Species string, e.g. O2-
@@ -354,14 +377,14 @@ def disordered_formula(disordered_struct, symbols=("x", "y", "z"), fmt="plain"):
     from pymatgen.core.periodic_table import get_el_sp
 
     if disordered_struct.is_ordered:
-        raise ValueError("Structure is not disordered, " "so disordered formula not defined.")
+        raise ValueError("Structure is not disordered, so disordered formula not defined.")
 
     disordered_site_compositions = {site.species for site in disordered_struct if not site.is_ordered}
 
     if len(disordered_site_compositions) > 1:
         # this probably won't happen too often
         raise ValueError(
-            "Ambiguous how to define disordered " "formula when more than one type of disordered " "site is present."
+            "Ambiguous how to define disordered formula when more than one type of disordered site is present."
         )
     disordered_site_composition = disordered_site_compositions.pop()
 
@@ -369,7 +392,7 @@ def disordered_formula(disordered_struct, symbols=("x", "y", "z"), fmt="plain"):
 
     if len(disordered_species) > len(symbols):
         # this probably won't happen too often either
-        raise ValueError("Not enough symbols to describe disordered composition: " "{}".format(symbols))
+        raise ValueError(f"Not enough symbols to describe disordered composition: {symbols}")
     symbols = list(symbols)[0 : len(disordered_species) - 1]
 
     comp = disordered_struct.composition.get_el_amt_dict().items()
@@ -379,7 +402,7 @@ def disordered_formula(disordered_struct, symbols=("x", "y", "z"), fmt="plain"):
     disordered_comp = []
     variable_map = {}
 
-    total_disordered_occu = sum([occu for sp, occu in comp if str(sp) in disordered_species])
+    total_disordered_occu = sum(occu for sp, occu in comp if str(sp) in disordered_species)
 
     # composition to get common factor
     factor_comp = disordered_struct.composition.as_dict()
@@ -414,7 +437,7 @@ def disordered_formula(disordered_struct, symbols=("x", "y", "z"), fmt="plain"):
         sub_start = "<sub>"
         sub_end = "</sub>"
     elif fmt != "plain":
-        raise ValueError("Unsupported output format, " "choose from: LaTeX, HTML, plain")
+        raise ValueError("Unsupported output format, choose from: LaTeX, HTML, plain")
 
     disordered_formula = []
     for sp, occu in disordered_comp:
@@ -426,42 +449,6 @@ def disordered_formula(disordered_struct, symbols=("x", "y", "z"), fmt="plain"):
             if fmt != "plain":
                 disordered_formula.append(sub_end)
     disordered_formula.append(" ")
-    disordered_formula += ["{}={} ".format(k, formula_double_format(v)) for k, v in variable_map.items()]
-
-    comp = disordered_struct.composition
+    disordered_formula += [f"{k}={formula_double_format(v)} " for k, v in variable_map.items()]
 
     return "".join(map(str, disordered_formula))[0:-1]
-
-
-class StringColorizer:
-    """
-    Provides coloring for strings in terminals.
-    """
-
-    # pylint: disable=R0903
-    colours = {
-        "default": "",
-        "blue": "\x1b[01;34m",
-        "cyan": "\x1b[01;36m",
-        "green": "\x1b[01;32m",
-        "red": "\x1b[01;31m",
-    }
-
-    def __init__(self, stream):
-        """
-        :param stream: Input stream
-        """
-        self.has_colours = stream_has_colours(stream)
-
-    def __call__(self, string, colour):
-        """
-        :param string: Actual string
-        :param colour: Color to assign.
-        :return: Colored string.
-        """
-        if self.has_colours:
-            code = self.colours.get(colour.lower(), "")
-            if code:
-                return code + string + "\x1b[00m"
-            return string
-        return string

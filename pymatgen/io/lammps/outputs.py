@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -91,7 +90,7 @@ class LammpsDump(MSONable):
         """
         Returns: MSONable dict
         """
-        d = dict()
+        d = {}
         d["@module"] = self.__class__.__module__
         d["@class"] = self.__class__.__name__
         d["timestep"] = self.timestep
@@ -151,7 +150,7 @@ def parse_lammps_log(filename="log.lammps"):
         [pd.DataFrame] containing thermo data for each completed run.
 
     """
-    with open(filename) as f:
+    with zopen(filename, "rt") as f:
         lines = f.readlines()
     begin_flag = (
         "Memory usage per processor =",

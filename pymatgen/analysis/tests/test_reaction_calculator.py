@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -102,7 +101,7 @@ class ReactionTest(unittest.TestCase):
 
         self.assertEqual(
             str(Reaction(reactants, products)),
-            "La2Zr2O7 + 6 LiCoO2 -> " "La2O3 + 3 Co2O3 + 2 Li2ZrO3 + Li2O",
+            "La2Zr2O7 + 6 LiCoO2 -> La2O3 + 3 Co2O3 + 2 Li2ZrO3 + Li2O",
         )
 
         reactants = [Composition("La2O3"), Composition("Co2O3"), Composition("Li2ZrO3")]
@@ -113,7 +112,7 @@ class ReactionTest(unittest.TestCase):
         ]
         self.assertEqual(
             str(Reaction(reactants, products)),
-            "La2O3 + 0.3333 Co2O3 + 2 Li2ZrO3 -> " "Li2O + La2Zr2O7 + 0.6667 Li3CoO3",
+            "La2O3 + 0.3333 Co2O3 + 2 Li2ZrO3 -> Li2O + La2Zr2O7 + 0.6667 Li3CoO3",
         )
 
         reactants = [Composition("La2O3"), Composition("Co2O3"), Composition("Li2ZrO3")]
@@ -125,7 +124,7 @@ class ReactionTest(unittest.TestCase):
         ]
         self.assertEqual(
             str(Reaction(reactants, products)),
-            "La2O3 + 0.3333 Co2O3 + 2 Li2ZrO3 -> " "Li2O + La2Zr2O7 + 0.6667 Li3CoO3",
+            "La2O3 + 0.3333 Co2O3 + 2 Li2ZrO3 -> Li2O + La2Zr2O7 + 0.6667 Li3CoO3",
         )
 
         reactants = [Composition("La2O3"), Composition("Co2O3"), Composition("Li2ZrO3")]
@@ -138,7 +137,7 @@ class ReactionTest(unittest.TestCase):
         ]
         self.assertEqual(
             str(Reaction(reactants, products)),
-            "La2O3 + 0.3333 Co2O3 + 2 Li2ZrO3 -> " "Li2O + La2Zr2O7 + 0.6667 Li3CoO3",
+            "La2O3 + 0.3333 Co2O3 + 2 Li2ZrO3 -> Li2O + La2Zr2O7 + 0.6667 Li3CoO3",
         )
 
         reactants = [Composition("LiCoO2")]
@@ -151,7 +150,7 @@ class ReactionTest(unittest.TestCase):
         ]
         self.assertEqual(
             str(Reaction(reactants, products)),
-            "1.667 LiCoO2 + 0.3333 CoF3 -> " "Co2O3 + 0.3333 Li2O + LiF",
+            "1.667 LiCoO2 + 0.3333 CoF3 -> Co2O3 + 0.3333 Li2O + LiF",
         )
 
         # this test can fail because of numerical rank calculation issues
@@ -177,7 +176,7 @@ class ReactionTest(unittest.TestCase):
         self.assertEqual(rxn, Reaction.from_string(str(rxn)))
 
         rxn2 = Reaction.from_string("FePO4 + 20 CO -> 1e1 O2 + Fe1P1O4 + 20 C")
-        self.assertEqual(str(rxn2), "20 CO -> 10 O2 + 20 C")
+        self.assertEqual(str(rxn2), "20 CO -> 20 C + 10 O2")
 
     def test_equals(self):
         reactants = [Composition("Fe"), Composition("O2")]

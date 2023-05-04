@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -84,7 +83,7 @@ class SymmetryGroup(Sequence, Stringify, metaclass=ABCMeta):
         Returns:
             True if this group is a supergroup of the supplied group.
         """
-        warnings.warn("This is not fully functional. Only trivial subsets are " "tested right now. ")
+        warnings.warn("This is not fully functional. Only trivial subsets are tested right now. ")
         return set(subgroup.symmetry_ops).issubset(self.symmetry_ops)
 
     def to_latex_string(self) -> str:
@@ -376,7 +375,7 @@ class SpaceGroup(SymmetryGroup):
         crys_system = self.crystal_system
 
         def check(param, ref, tolerance):
-            return all([abs(i - j) < tolerance for i, j in zip(param, ref) if j is not None])
+            return all(abs(i - j) < tolerance for i, j in zip(param, ref) if j is not None)
 
         if crys_system == "cubic":
             a = abc[0]

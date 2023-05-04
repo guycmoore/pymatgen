@@ -6,12 +6,10 @@ from pymatgen.apps.battery.analyzer import BatteryAnalyzer
 from pymatgen.core.structure import Structure
 from pymatgen.util.testing import PymatgenTest
 
-module_dir = os.path.join(os.path.dirname(pymatgen.__file__), "..", "test_files")
-
 
 class BatteryAnalyzerTest(PymatgenTest):
     def load_from_cif(self, filename, oxidations, cation="Li"):
-        s = Structure.from_file(os.path.join(module_dir, filename))
+        s = Structure.from_file(os.path.join(PymatgenTest.TEST_FILES_DIR, filename))
         s.add_oxidation_state_by_element(oxidations)
         return BatteryAnalyzer(s, cation)
 
@@ -78,14 +76,14 @@ class BatteryAnalyzerTest(PymatgenTest):
         )
 
     def test_delithiation(self):
-        self.assertEqual(self.lifemnpo4.get_removals_int_oxid(), set([1.0, 2.0, 3.0, 4.0]))
+        self.assertEqual(self.lifemnpo4.get_removals_int_oxid(), {1.0, 2.0, 3.0, 4.0})
 
         self.assertEqual(
             self.li8nicofe208.get_removals_int_oxid(),
-            set([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]),
+            {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0},
         )
 
-        self.assertEqual(self.li3v2p3o12.get_removals_int_oxid(), set([4.0, 6.0]))
+        self.assertEqual(self.li3v2p3o12.get_removals_int_oxid(), {4.0, 6.0})
 
 
 if __name__ == "__main__":

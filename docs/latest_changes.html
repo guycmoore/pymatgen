@@ -8,7 +8,7 @@
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Change log &mdash; pymatgen 2021.1.28 documentation</title>
+  <title>Change log &mdash; pymatgen 2022.0.15 documentation</title>
   
 
   
@@ -69,7 +69,7 @@
             
             
               <div class="version">
-                2021.1.28
+                2022.0.15
               </div>
             
           
@@ -97,6 +97,8 @@
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="change_log.html">Change log</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compatibility.html">Compatibility</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
 <li class="toctree-l1"><a class="reference internal" href="team.html">Development Team</a></li>
 <li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
@@ -169,15 +171,28 @@
             
   <div class="section" id="change-log">
 <h1>Change log<a class="headerlink" href="#change-log" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="v2021-1-28">
-<h2>v2021.1.28<a class="headerlink" href="#v2021-1-28" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="v2022-0-15">
+<h2>v2022.0.15<a class="headerlink" href="#v2022-0-15" title="Permalink to this headline">¶</a></h2>
+<p>Welcome to new contributors &#64;blokhin, &#64;pzarabadip, &#64;ml-evs, &#64;wuxiaohua1011, &#64;janssenhenning and &#64;penicillin0. A reminder to all new contributors to
+ensure your information is accurate at <a class="reference external" href="https://pymatgen.org/team.html">https://pymatgen.org/team.html</a> so that
+you are acknowledged appropriately by filling out the linked form.</p>
 <ul class="simple">
-<li><p>Ability to read Lobster wavefunctions (&#64;JaGeo, #2034)</p></li>
-<li><p>Method to estimate number of bands for VASP calculation (&#64;rwoodsrobinson, #2044)</p></li>
-<li><p>Q-Chem cube file plotting and improvements to output parsring (&#64;samblau, #2032)</p></li>
-<li><p>Improvements to pymatgen import speed (&#64;mkhorton, #2031)</p></li>
-<li><p>Bug fix for k-path generation (&#64;munrojm, #2037)</p></li>
-<li><p>Bug fix for parsing of core potentials from VASP (&#64;utf, #2033)</p></li>
+<li><p>Breaking change in PhaseDiagram serialization which will affect any users of BasePhaseDiagram which has now been removed (&#64;shyuep, 2b9911d)</p></li>
+<li><p>Speed up nearest-neighbor routines &amp; structure graph generation (&#64;ltalirz, #2239)</p></li>
+<li><p>Add two more pre-defined OPTIMADE aliases (&#64;blokhin, #2242)</p></li>
+<li><p>Refactor <cite>interface_reactions</cite> module, adding support for Plotly (&#64;mattmcdermott, #2233)</p></li>
+<li><p>Update NOMAD access in MPRester (&#64;wuxiaohua1011, #1958)</p></li>
+<li><p>General improvements to Phase Diagram code (&#64;CompyRhys, #2263, #2264, #2268)</p></li>
+<li><p>Improve appearance of periodic table heatmap (&#64;penicillin0, #2272)</p></li>
+<li><p>Small improvements to battery classes (&#64;jmmshn, #2262)</p></li>
+<li><p>Fix for Composition.chemical_system to match expected behaviour for compositions with oxidation states (&#64;CompRhys, #2249)</p></li>
+<li><p>Fix for bad param in OPTIMADE reponse fields (&#64;ml-evs, #2244)</p></li>
+<li><p>Fix for issue in parsing <cite>bandOverlaps.lobster</cite> file (&#64;pzarabadip, #2237)</p></li>
+<li><p>Fix for Moladaptor (&#64;orioncohen, #2269)</p></li>
+<li><p>Fix for incorrect Potcar hash warnings (&#64;mkhorton, #2273)</p></li>
+<li><p>Type hint and correct documentation of Structure.remove_site_properties (&#64;kmu, #2256)</p></li>
+<li><p>Type hint improvements across pymatgen (&#64;janosh, #2241, #2247, #2261)</p></li>
+<li><p>Add <cite>pymatgen-io-fleur</cite> addon to addons page (&#64;janssenhenning, #2232)</p></li>
 </ul>
 </div>
 </div>

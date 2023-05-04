@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -24,7 +23,7 @@ from monty.dev import requires
 from monty.serialization import loadfn
 from scipy.spatial import Voronoi
 
-from pymatgen import yaml
+from pymatgen.core import yaml
 from pymatgen.core.periodic_table import Element
 from pymatgen.core.structure import IStructure, Structure
 from pymatgen.analysis.bond_valence import BV_PARAMS, BVAnalyzer
@@ -37,9 +36,8 @@ try:
 except Exception:
     ob = None
 
-__author__ = (
-    "Shyue Ping Ong, Geoffroy Hautier, Sai Jayaraman," + " Nils E. R. Zimmermann, Bharat Medasani, Evan Spotte-Smith"
-)
+__author__ = "Shyue Ping Ong, Geoffroy Hautier, Sai Jayaraman, "
+__author__ += "Nils E. R. Zimmermann, Bharat Medasani, Evan Spotte-Smith"
 __copyright__ = "Copyright 2011, The Materials Project"
 __version__ = "1.0"
 __maintainer__ = "Nils E. R. Zimmermann"
@@ -49,13 +47,13 @@ __date__ = "August 17, 2017"
 
 _directory = os.path.join(os.path.dirname(__file__))
 
-with open(os.path.join(_directory, "op_params.yaml"), "rt") as f:
+with open(os.path.join(_directory, "op_params.yaml")) as f:
     default_op_params = yaml.safe_load(f)
 
-with open(os.path.join(_directory, "cn_opt_params.yaml"), "r") as f:
+with open(os.path.join(_directory, "cn_opt_params.yaml")) as f:
     cn_opt_params = yaml.safe_load(f)
 
-with open(os.path.join(_directory, "ionic_radii.json"), "r") as fp:
+with open(os.path.join(_directory, "ionic_radii.json")) as fp:
     _ion_radii = json.load(fp)
 
 
@@ -120,8 +118,7 @@ class ValenceIonicRadiusEvaluator:
                 return after
             return before
 
-        for i in range(len(self._structure.sites)):
-            site = self._structure.sites[i]
+        for i, site in enumerate(self._structure.sites):
             if isinstance(site.specie, Element):
                 radius = site.specie.atomic_radius
                 # Handle elements with no atomic_radius
@@ -129,7 +126,7 @@ class ValenceIonicRadiusEvaluator:
                 if radius is None:
                     radius = site.specie.atomic_radius_calculated
                 if radius is None:
-                    raise ValueError("cannot assign radius to element {}".format(site.specie))
+                    raise ValueError(f"cannot assign radius to element {site.specie}")
                 radii.append(radius)
                 continue
 
@@ -229,7 +226,7 @@ class NearNeighbors:
         Boolean property: can this NearNeighbors class be used with Structure
         objects?
         """
-        raise NotImplementedError("structures_allowed" " is not defined!")
+        raise NotImplementedError("structures_allowed is not defined!")
 
     @property
     def molecules_allowed(self):
@@ -237,7 +234,7 @@ class NearNeighbors:
         Boolean property: can this NearNeighbors class be used with Molecule
         objects?
         """
-        raise NotImplementedError("molecules_allowed" " is not defined!")
+        raise NotImplementedError("molecules_allowed is not defined!")
 
     @property
     def extend_structure_molecules(self):
@@ -246,7 +243,7 @@ class NearNeighbors:
         this NearNeighbors class? Note: this property is not defined for classes
         for which molecules_allowed == False.
         """
-        raise NotImplementedError("extend_structures_molecule" " is not defined!")
+        raise NotImplementedError("extend_structures_molecule is not defined!")
 
     def get_cn(self, structure, n, use_weights=False):
         """
@@ -264,7 +261,7 @@ class NearNeighbors:
         """
 
         siw = self.get_nn_info(structure, n)
-        return sum([e["weight"] for e in siw]) if use_weights else len(siw)
+        return sum(e["weight"] for e in siw) if use_weights else len(siw)
 
     def get_cn_dict(self, structure, n, use_weights=False):
         """
@@ -488,7 +485,7 @@ class NearNeighbors:
         # Each allowed step results in many terminal neighbors
         #  And, different first steps might results in the same neighbor
         #  Now, we condense those neighbors into a single entry per neighbor
-        all_sites = dict()
+        all_sites = {}
         for first_site, term_sites in zip(allowed_steps, terminal_neighbors):
             for term_site in term_sites:
                 key = (term_site["site_index"], tuple(term_site["image"]))
@@ -533,9 +530,14 @@ class NearNeighbors:
     def _get_original_site(structure, site):
         """Private convenience method for get_nn_info,
         gives original site index from ProvidedPeriodicSite."""
-        for i, s in enumerate(structure):
-            if site.is_periodic_image(s):
-                return i
+        if isinstance(structure, (IStructure, Structure)):
+            for i, s in enumerate(structure):
+                if site.is_periodic_image(s):
+                    return i
+        else:
+            for i, s in enumerate(structure):
+                if site == s:
+                    return i
         raise Exception("Site not found!")
 
     def get_bonded_structure(self, structure, decorate=False, weights=True):
@@ -724,7 +726,7 @@ class VoronoiNN(NearNeighbors):
                     if e.args and "vertex" in e.args[0]:
                         # pass through the error raised by _extract_cell_info
                         raise e
-                    raise RuntimeError("Error in Voronoi neighbor finding; " "max cutoff exceeded")
+                    raise RuntimeError("Error in Voronoi neighbor finding; max cutoff exceeded")
                 cutoff = min(cutoff * 2, max_cutoff + 0.001)
         return cell_info
 
@@ -838,9 +840,7 @@ class VoronoiNN(NearNeighbors):
                     if self.allow_pathological:
                         continue
 
-                    raise RuntimeError(
-                        "This structure is pathological," " infinite vertex in the voronoi " "construction"
-                    )
+                    raise RuntimeError("This structure is pathological, infinite vertex in the voronoi construction")
 
                 # Get the solid angle of the face
                 facets = [all_vertices[i] for i in vind]
@@ -904,7 +904,7 @@ class VoronoiNN(NearNeighbors):
         # If desired, determine which neighbors are adjacent
         if compute_adj_neighbors:
             # Initialize storage for the adjacent neighbors
-            adj_neighbors = dict((i, []) for i in resultweighted.keys())
+            adj_neighbors = {i: [] for i in resultweighted.keys()}
 
             # Find the neighbors that are adjacent by finding those
             #  that contain exactly two vertices
@@ -1173,7 +1173,7 @@ class JmolNN(NearNeighbors):
 
         # Load elemental radii table
         bonds_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bonds_jmol_ob.yaml")
-        with open(bonds_file, "r") as f:
+        with open(bonds_file) as f:
             self.el_radius = yaml.safe_load(f)
 
         # Update any user preference elemental radii
@@ -1328,7 +1328,7 @@ class MinimumDistanceNN(NearNeighbors):
 
         site = structure[n]
         neighs_dists = structure.get_neighbors(site, self.cutoff)
-
+        is_periodic = isinstance(structure, (Structure, IStructure))
         siw = []
         if self.get_all_sites:
             for nn in neighs_dists:
@@ -1336,13 +1336,13 @@ class MinimumDistanceNN(NearNeighbors):
                 siw.append(
                     {
                         "site": nn,
-                        "image": self._get_image(structure, nn),
+                        "image": self._get_image(structure, nn) if is_periodic else None,
                         "weight": w,
                         "site_index": self._get_original_site(structure, nn),
                     }
                 )
         else:
-            min_dist = min([nn.nn_distance for nn in neighs_dists])
+            min_dist = min(nn.nn_distance for nn in neighs_dists)
             for nn in neighs_dists:
                 dist = nn.nn_distance
                 if dist < (1.0 + self.tol) * min_dist:
@@ -1350,7 +1350,7 @@ class MinimumDistanceNN(NearNeighbors):
                     siw.append(
                         {
                             "site": nn,
-                            "image": self._get_image(structure, nn),
+                            "image": self._get_image(structure, nn) if is_periodic else None,
                             "weight": w,
                             "site_index": self._get_original_site(structure, nn),
                         }
@@ -1765,7 +1765,7 @@ class MinimumOKeeffeNN(NearNeighbors):
             reldists_neighs.append([dist / get_okeeffe_distance_prediction(eln, el2), neigh])
 
         siw = []
-        min_reldist = min([reldist for reldist, neigh in reldists_neighs])
+        min_reldist = min(reldist for reldist, neigh in reldists_neighs)
         for reldist, s in reldists_neighs:
             if reldist < (1.0 + self.tol) * min_reldist:
                 w = min_reldist / reldist
@@ -1843,7 +1843,7 @@ class MinimumVIRENN(NearNeighbors):
             reldists_neighs.append([nn.nn_distance / (vire.radii[nn.species_string] + rn), nn])
 
         siw = []
-        min_reldist = min([reldist for reldist, neigh in reldists_neighs])
+        min_reldist = min(reldist for reldist, neigh in reldists_neighs)
         for reldist, s in reldists_neighs:
             if reldist < (1.0 + self.tol) * min_reldist:
                 w = min_reldist / reldist
@@ -2028,7 +2028,7 @@ def get_neighbors_of_site_with_index(struct, n, approach="min_dist", delta=0.1, 
 
     if approach == "min_VIRE":
         return MinimumVIRENN(tol=delta, cutoff=cutoff).get_nn(struct, n)
-    raise RuntimeError("unsupported neighbor-finding method ({}).".format(approach))
+    raise RuntimeError(f"unsupported neighbor-finding method ({approach}).")
 
 
 def site_is_of_motif_type(struct, n, approach="min_dist", delta=0.1, cutoff=10.0, thresh=None):
@@ -2404,7 +2404,7 @@ class LocalStructOrderParams:
         """
 
         if len(thetas) != len(phis):
-            raise ValueError("List of polar and azimuthal angles have to be" " equal!")
+            raise ValueError("List of polar and azimuthal angles have to be equal!")
 
         self._pow_sin_t.clear()
         self._pow_cos_t.clear()
@@ -2778,7 +2778,7 @@ class LocalStructOrderParams:
             str: OP type.
         """
         if index < 0 or index >= len(self._types):
-            raise ValueError("Index for getting order parameter type" " out-of-bounds!")
+            raise ValueError("Index for getting order parameter type out-of-bounds!")
         return self._types[index]
 
     def get_parameters(self, index):
@@ -2798,9 +2798,7 @@ class LocalStructOrderParams:
             [float]: parameters of a given OP.
         """
         if index < 0 or index >= len(self._types):
-            raise ValueError(
-                "Index for getting parameters associated with" " order parameter calculation out-of-bounds!"
-            )
+            raise ValueError("Index for getting parameters associated with order parameter calculation out-of-bounds!")
         return self._params[index]
 
     def get_order_parameters(self, structure, n, indices_neighs=None, tol=0.0, target_spec=None):
@@ -2903,9 +2901,9 @@ class LocalStructOrderParams:
         centvec = centsite.coords
         if self._computerijs:
             for j, neigh in enumerate(neighsites):
-                rij.append((neigh.coords - centvec))
+                rij.append(neigh.coords - centvec)
                 dist.append(np.linalg.norm(rij[j]))
-                rijnorm.append((rij[j] / dist[j]))
+                rijnorm.append(rij[j] / dist[j])
         if self._computerjks:
             for j, neigh in enumerate(neighsites):
                 rjk.append([])
@@ -3403,7 +3401,7 @@ class BrunnerNN_reciprocal(NearNeighbors):
         """
         site = structure[n]
         neighs_dists = structure.get_neighbors(site, self.cutoff)
-        ds = sorted([i.nn_distance for i in neighs_dists])
+        ds = sorted(i.nn_distance for i in neighs_dists)
 
         ns = [1.0 / ds[i] - 1.0 / ds[i + 1] for i in range(len(ds) - 1)]
 
@@ -3476,7 +3474,7 @@ class BrunnerNN_relative(NearNeighbors):
         """
         site = structure[n]
         neighs_dists = structure.get_neighbors(site, self.cutoff)
-        ds = sorted([i.nn_distance for i in neighs_dists])
+        ds = sorted(i.nn_distance for i in neighs_dists)
 
         ns = [ds[i + 1] / ds[i] for i in range(len(ds) - 1)]
 
@@ -3549,7 +3547,7 @@ class BrunnerNN_real(NearNeighbors):
         """
         site = structure[n]
         neighs_dists = structure.get_neighbors(site, self.cutoff)
-        ds = sorted([i.nn_distance for i in neighs_dists])
+        ds = sorted(i.nn_distance for i in neighs_dists)
 
         ns = [ds[i + 1] - ds[i] for i in range(len(ds) - 1)]
 
@@ -4006,7 +4004,7 @@ class CrystalNN(NearNeighbors):
             cn (integer or float): coordination number.
         """
         if self.weighted_cn != use_weights:
-            raise ValueError("The weighted_cn parameter and use_weights " "parameter should match!")
+            raise ValueError("The weighted_cn parameter and use_weights parameter should match!")
 
         return super().get_cn(structure, n, use_weights)
 
@@ -4026,7 +4024,7 @@ class CrystalNN(NearNeighbors):
             cn (dict): dictionary of CN of each element bonded to site
         """
         if self.weighted_cn != use_weights:
-            raise ValueError("The weighted_cn parameter and use_weights " "parameter should match!")
+            raise ValueError("The weighted_cn parameter and use_weights parameter should match!")
 
         return super().get_cn_dict(structure, n, use_weights)
 
@@ -4138,9 +4136,11 @@ def _get_radius(site):
 
 class CutOffDictNN(NearNeighbors):
     """
-    A very basic NN class using a dictionary of fixed
-    cut-off distances. Can also be used with no dictionary
-    defined for a Null/Empty NN class.
+    A basic NN class using a dictionary of fixed cut-off distances.
+    Only pairs of elements listed in the cut-off dictionary are considered
+    during construction of the neighbor lists.
+
+    Omit passing a dictionary for a Null/Empty NN class.
     """
 
     def __init__(self, cut_off_dict=None):
@@ -4149,10 +4149,11 @@ class CutOffDictNN(NearNeighbors):
             cut_off_dict (Dict[str, float]): a dictionary
             of cut-off distances, e.g. {('Fe','O'): 2.0} for
             a maximum Fe-O bond length of 2.0 Angstroms.
-            Note that if your structure is oxidation state
-            decorated, the cut-off distances will have to
-            explicitly include the oxidation state, e.g.
-            {('Fe2+', 'O2-'): 2.0}
+            Bonds will only be created between pairs listed
+            in the cut-off dictionary.
+            If your structure is oxidation state decorated,
+            the cut-off distances will have to explicitly include
+            the oxidation state, e.g. {('Fe2+', 'O2-'): 2.0}
         """
 
         self.cut_off_dict = cut_off_dict or {}
@@ -4210,7 +4211,7 @@ class CutOffDictNN(NearNeighbors):
             cut_offs = loadfn(os.path.join(_directory, "vesta_cutoffs.yaml"))
             return CutOffDictNN(cut_off_dict=cut_offs)
 
-        raise ValueError("Unrecognised preset: {}".format(preset))
+        raise ValueError(f"Unrecognised preset: {preset}")
 
     def get_nn_info(self, structure, n):
         """
@@ -4348,3 +4349,53 @@ class Critic2NN(NearNeighbors):
             }
             for connected_site in sg.get_connected_sites(n)
         ]
+
+
+def metal_edge_extender(mol_graph):
+    """
+    Function to identify and add missed coordinate bond edges for metals
+
+    Args:
+        mol_graph: pymatgen.analysis.graphs.MoleculeGraph object
+
+    Returns:
+        mol_graph: pymatgen.analysis.graphs.MoleculeGraph object with additional
+            metal bonds (if any found) added
+
+    """
+    metal_sites = {"Li": {}, "Mg": {}, "Ca": {}, "Zn": {}, "B": {}, "Al": {}}
+    coordinators = ["O", "N", "F", "S", "Cl"]
+    num_new_edges = 0
+    for idx in mol_graph.graph.nodes():
+        if mol_graph.graph.nodes()[idx]["specie"] in metal_sites:
+            metal_sites[mol_graph.graph.nodes()[idx]["specie"]][idx] = [
+                site[2] for site in mol_graph.get_connected_sites(idx)
+            ]
+    for metal, sites in metal_sites.items():
+        for idx, indices in sites.items():
+            for ii, site in enumerate(mol_graph.molecule):
+                if ii != idx and ii not in indices:
+                    if str(site.specie) in coordinators:
+                        if site.distance(mol_graph.molecule[idx]) < 2.5:
+                            mol_graph.add_edge(idx, ii)
+                            num_new_edges += 1
+                            indices.append(ii)
+    total_metal_edges = 0
+    for sites in metal_sites.values():
+        for indices in sites.values():
+            total_metal_edges += len(indices)
+    if total_metal_edges == 0:
+        for metal, sites in metal_sites.items():
+            for idx, indices in sites.items():
+                for ii, site in enumerate(mol_graph.molecule):
+                    if ii != idx and ii not in indices:
+                        if str(site.specie) in coordinators:
+                            if site.distance(mol_graph.molecule[idx]) < 3.5:
+                                mol_graph.add_edge(idx, ii)
+                                num_new_edges += 1
+                                indices.append(ii)
+    total_metal_edges = 0
+    for sites in metal_sites.values():
+        for indices in sites.values():
+            total_metal_edges += len(indices)
+    return mol_graph

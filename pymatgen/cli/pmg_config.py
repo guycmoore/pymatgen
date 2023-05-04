@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -17,7 +16,7 @@ from urllib.request import urlretrieve
 
 from monty.serialization import dumpfn, loadfn
 
-from pymatgen import SETTINGS_FILE
+from pymatgen.core import SETTINGS_FILE
 
 
 def setup_potcars(args):
@@ -26,7 +25,7 @@ def setup_potcars(args):
 
     :param args: args from command.
     """
-    pspdir, targetdir = [os.path.abspath(d) for d in args.potcar_dirs]
+    pspdir, targetdir = (os.path.abspath(d) for d in args.potcar_dirs)
     try:
         os.makedirs(targetdir)
     except OSError:
@@ -68,23 +67,26 @@ def setup_potcars(args):
                     shutil.copy(fname, dest)
                     ext = fname.split(".")[-1]
                     if ext.upper() in ["Z", "GZ"]:
-                        subprocess.Popen(["gunzip", dest]).communicate()
+                        with subprocess.Popen(["gunzip", dest]) as p:
+                            p.communicate()
                     elif ext.upper() in ["BZ2"]:
-                        subprocess.Popen(["bunzip2", dest]).communicate()
+                        with subprocess.Popen(["bunzip2", dest]) as p:
+                            p.communicate()
                     if subdir == "Osmium":
                         subdir = "Os"
-                    dest = os.path.join(basedir, "POTCAR.{}".format(subdir))
+                    dest = os.path.join(basedir, f"POTCAR.{subdir}")
                     shutil.move(os.path.join(basedir, "POTCAR"), dest)
-                    subprocess.Popen(["gzip", "-f", dest]).communicate()
+                    with subprocess.Popen(["gzip", "-f", dest]) as p:
+                        p.communicate()
                 except Exception as ex:
-                    print("An error has occured. Message is %s. Trying to " "continue... " % str(ex))
+                    print("An error has occurred. Message is %s. Trying to continue... " % str(ex))
 
     print("")
     print(
         "PSP resources directory generated. It is recommended that you "
         "run 'pmg config --add PMG_VASP_PSP_DIR %s'" % os.path.abspath(targetdir)
     )
-    print("Start a new terminal to ensure that your environment variables " "are properly set.")
+    print("Start a new terminal to ensure that your environment variables are properly set.")
 
 
 def build_enum(fortran_command="gfortran"):
@@ -190,7 +192,7 @@ def add_config_var(args):
     d = {}
     if os.path.exists(SETTINGS_FILE):
         shutil.copy(SETTINGS_FILE, SETTINGS_FILE + ".bak")
-        print("Existing %s backed up to %s" % (SETTINGS_FILE, SETTINGS_FILE + ".bak"))
+        print("Existing {} backed up to {}".format(SETTINGS_FILE, SETTINGS_FILE + ".bak"))
         d = loadfn(SETTINGS_FILE)
     toks = args.var_spec
     if len(toks) % 2 != 0:

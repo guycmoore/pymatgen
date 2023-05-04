@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -19,6 +18,8 @@ from .outputs import (  # noqa
     Fatband,  # noqa
     Grosspop,  # noqa
     Icohplist,  # noqa
+    MadelungEnergies,  # noqa
     Lobsterout,  # noqa
+    SitePotential,  # noqa
     Wavefunction,  # noqa
 )  # noqa

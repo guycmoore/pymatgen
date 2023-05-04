@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -7,9 +6,9 @@ import json
 import os
 import unittest
 import warnings
-from io import open
 
 from monty.serialization import loadfn
+import numpy
 
 from pymatgen.core.lattice import Lattice
 from pymatgen.electronic_structure.bandstructure import (
@@ -41,6 +40,32 @@ class KpointTest(unittest.TestCase):
         self.assertEqual(self.kpoint.cart_coords[1], 4.0)
         self.assertEqual(self.kpoint.cart_coords[2], -5.0)
         self.assertEqual(self.kpoint.label, "X")
+
+    def test_as_dict(self):
+        self.assertIsInstance(self.kpoint.as_dict()["fcoords"], list)
+        self.assertIsInstance(self.kpoint.as_dict()["ccoords"], list)
+        self.assertNotIsInstance(self.kpoint.as_dict()["fcoords"][0], numpy.float64)
+        self.assertNotIsInstance(self.kpoint.as_dict()["ccoords"][0], numpy.float64)
+        self.assertListEqual(self.kpoint.as_dict()["fcoords"], [0.1, 0.4, -0.5])
+        self.assertListEqual(self.kpoint.as_dict()["ccoords"], [1.0, 4.0, -5.0])
+
+    def test_from_dict(self):
+
+        d = self.kpoint.as_dict()
+
+        kpoint = Kpoint.from_dict(d)
+
+        self.assertEqual(kpoint.frac_coords[0], 0.1)
+        self.assertEqual(kpoint.frac_coords[1], 0.4)
+        self.assertEqual(kpoint.frac_coords[2], -0.5)
+        self.assertEqual(kpoint.a, 0.1)
+        self.assertEqual(kpoint.b, 0.4)
+        self.assertEqual(kpoint.c, -0.5)
+        self.assertEqual(kpoint.lattice, Lattice.cubic(10.0))
+        self.assertEqual(kpoint.cart_coords[0], 1.0)
+        self.assertEqual(kpoint.cart_coords[1], 4.0)
+        self.assertEqual(kpoint.cart_coords[2], -5.0)
+        self.assertEqual(kpoint.label, "X")
 
 
 class BandStructureSymmLine_test(PymatgenTest):
@@ -194,7 +219,7 @@ class BandStructureSymmLine_test(PymatgenTest):
         self.assertIsNotNone(s)
 
     def test_old_format_load(self):
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "bs_ZnS_old.json"), "r", encoding="utf-8") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "bs_ZnS_old.json"), encoding="utf-8") as f:
             d = json.load(f)
             bs_old = BandStructureSymmLine.from_dict(d)
             self.assertEqual(bs_old.get_projection_on_elements()[Spin.up][0][0]["Zn"], 0.0971)
@@ -230,14 +255,12 @@ class LobsterBandStructureSymmLine_test(PymatgenTest):
         warnings.simplefilter("ignore")
         with open(
             os.path.join(PymatgenTest.TEST_FILES_DIR, "cohp/Fatband_SiO2/Test_p/lobster_band_structure_spin.json"),
-            "r",
         ) as f:
             bs_spin_dict = json.load(f)
         self.bs_spin = LobsterBandStructureSymmLine.from_dict(bs_spin_dict)
 
         with open(
             os.path.join(PymatgenTest.TEST_FILES_DIR, "cohp/Fatband_SiO2/Test_p/lobster_band_structure.json"),
-            "r",
         ) as f:
             bs_dict = json.load(f)
         self.bs_p = LobsterBandStructureSymmLine.from_dict(bs_dict)

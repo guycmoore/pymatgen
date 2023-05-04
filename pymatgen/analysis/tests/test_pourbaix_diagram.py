@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -8,11 +7,13 @@ import multiprocessing
 import os
 import unittest
 import warnings
+import pytest
 
 import numpy as np
-from monty.serialization import loadfn
+from monty.serialization import loadfn, dumpfn
+from monty.tempfile import ScratchDir
 
-from pymatgen import SETTINGS
+from pymatgen.core import SETTINGS
 from pymatgen.analysis.pourbaix_diagram import (
     IonEntry,
     MultiEntry,
@@ -44,7 +45,7 @@ class PourbaixEntryTest(unittest.TestCase):
 
     def test_pourbaix_entry(self):
         self.assertEqual(self.PxIon.entry.energy, 25, "Wrong Energy!")
-        self.assertEqual(self.PxIon.entry.name, "MnO4[-]", "Wrong Entry!")
+        self.assertEqual(self.PxIon.entry.name, "MnO4[-1]", "Wrong Entry!")
         self.assertEqual(self.PxSol.entry.energy, 49, "Wrong Energy!")
         self.assertEqual(self.PxSol.entry.name, "Mn2O3", "Wrong Entry!")
         # self.assertEqual(self.PxIon.energy, 25, "Wrong Energy!")
@@ -63,7 +64,7 @@ class PourbaixEntryTest(unittest.TestCase):
     def test_to_from_dict(self):
         d = self.PxIon.as_dict()
         ion_entry = self.PxIon.from_dict(d)
-        self.assertEqual(ion_entry.entry.name, "MnO4[-]", "Wrong Entry!")
+        self.assertEqual(ion_entry.entry.name, "MnO4[-1]", "Wrong Entry!")
 
         d = self.PxSol.as_dict()
         sol_entry = self.PxSol.from_dict(d)
@@ -73,6 +74,15 @@ class PourbaixEntryTest(unittest.TestCase):
             self.PxSol.energy,
             "as_dict and from_dict energies unequal",
         )
+
+        # Ensure computed entry data persists
+        entry = ComputedEntry("TiO2", energy=-20, data={"test": "test"})
+        pbx_entry = PourbaixEntry(entry=entry)
+        with ScratchDir("."):
+            dumpfn(pbx_entry, "pbx_entry.json")
+            reloaded = loadfn("pbx_entry.json")
+        self.assertIsInstance(reloaded.entry, ComputedEntry)
+        self.assertIsNotNone(reloaded.entry.data)
 
     def test_energy_functions(self):
         # TODO: test these for values
@@ -113,20 +123,20 @@ class PourbaixDiagramTest(unittest.TestCase):
 
     def test_pourbaix_diagram(self):
         self.assertEqual(
-            set([e.name for e in self.pbx.stable_entries]),
+            {e.name for e in self.pbx.stable_entries},
             {"ZnO(s)", "Zn[2+]", "ZnHO2[-]", "ZnO2[2-]", "Zn(s)"},
             "List of stable entries does not match",
         )
 
         self.assertEqual(
-            set([e.name for e in self.pbx_nofilter.stable_entries]),
+            {e.name for e in self.pbx_nofilter.stable_entries},
             {"ZnO(s)", "Zn[2+]", "ZnHO2[-]", "ZnO2[2-]", "Zn(s)", "ZnO2(s)", "ZnH(s)"},
             "List of stable entries for unfiltered pbx does not match",
         )
 
         pbx_lowconc = PourbaixDiagram(self.test_data["Zn"], conc_dict={"Zn": 1e-8}, filter_solids=True)
         self.assertEqual(
-            set([e.name for e in pbx_lowconc.stable_entries]),
+            {e.name for e in pbx_lowconc.stable_entries},
             {"Zn(HO)2(aq)", "Zn[2+]", "ZnHO2[-]", "ZnO2[2-]", "Zn(s)"},
         )
 
@@ -206,6 +216,17 @@ class PourbaixDiagramTest(unittest.TestCase):
         ph, v = np.meshgrid(np.linspace(0, 14), np.linspace(-3, 3))
         self.pbx.get_decomposition_energy(entry, ph, v)
 
+        # Test custom ions
+        entries = self.test_data["C-Na-Sn"]
+        ion = IonEntry(Ion.from_formula("NaO28H80Sn12C24+"), -161.676)
+        custom_ion_entry = PourbaixEntry(ion, entry_id="my_ion")
+        pbx = PourbaixDiagram(
+            entries + [custom_ion_entry],
+            filter_solids=True,
+            comp_dict={"Na": 1, "Sn": 12, "C": 24},
+        )
+        self.assertAlmostEqual(pbx.get_decomposition_energy(custom_ion_entry, 5, 2), 2.1209002582, 1)
+
     def test_get_stable_entry(self):
         entry = self.pbx.get_stable_entry(0, 0)
         self.assertEqual(entry.entry_id, "ion-0")
@@ -232,17 +253,18 @@ class PourbaixDiagramTest(unittest.TestCase):
         d = self.pbx.as_dict()
         new = PourbaixDiagram.from_dict(d)
         self.assertEqual(
-            set([e.name for e in new.stable_entries]),
+            {e.name for e in new.stable_entries},
             {"ZnO(s)", "Zn[2+]", "ZnHO2[-]", "ZnO2[2-]", "Zn(s)"},
             "List of stable entries does not match",
         )
 
-        # Test with unprocessed entries included, this should result in the
+        # Test with unstable solid entries included (filter_solids=False), this should result in the
         # previously filtered entries being included
-        d = self.pbx.as_dict(include_unprocessed_entries=True)
+        with pytest.warns(DeprecationWarning, match="The include_unprocessed_entries kwarg is deprecated!"):
+            d = self.pbx_nofilter.as_dict(include_unprocessed_entries=True)
         new = PourbaixDiagram.from_dict(d)
         self.assertEqual(
-            set([e.name for e in new.stable_entries]),
+            {e.name for e in new.stable_entries},
             {"ZnO(s)", "Zn[2+]", "ZnHO2[-]", "ZnO2[2-]", "Zn(s)", "ZnO2(s)", "ZnH(s)"},
             "List of stable entries for unfiltered pbx does not match",
         )
@@ -255,52 +277,6 @@ class PourbaixDiagramTest(unittest.TestCase):
         )
         new_binary = PourbaixDiagram.from_dict(pd_binary.as_dict())
         self.assertEqual(len(pd_binary.stable_entries), len(new_binary.stable_entries))
-
-    # The two tests below rely on the MP Rest interface.
-    @unittest.skipIf(not SETTINGS.get("PMG_MAPI_KEY"), "PMG_MAPI_KEY environment variable not set.")
-    def test_heavy(self):
-        from pymatgen.ext.matproj import MPRester
-
-        mpr = MPRester()
-        entries = mpr.get_pourbaix_entries(["Li", "Mg", "Sn", "Pd"])
-        pbx = PourbaixDiagram(entries, nproc=4, filter_solids=False)
-        entries = mpr.get_pourbaix_entries(["Ba", "Ca", "V", "Cu", "F"])
-        pbx = PourbaixDiagram(entries, nproc=4, filter_solids=False)
-        entries = mpr.get_pourbaix_entries(["Ba", "Ca", "V", "Cu", "F", "Fe"])
-        pbx = PourbaixDiagram(entries, nproc=4, filter_solids=False)
-        entries = mpr.get_pourbaix_entries(["Na", "Ca", "Nd", "Y", "Ho", "F"])
-        pbx = PourbaixDiagram(entries, nproc=4, filter_solids=False)
-
-    @unittest.skipIf(not SETTINGS.get("PMG_MAPI_KEY"), "PMG_MAPI_KEY environment variable not set.")
-    def test_mpr_pipeline(self):
-        from pymatgen.ext.matproj import MPRester
-
-        mpr = MPRester()
-        data = mpr.get_pourbaix_entries(["Zn"])
-        pbx = PourbaixDiagram(data, filter_solids=True, conc_dict={"Zn": 1e-8})
-        pbx.find_stable_entry(10, 0)
-
-        data = mpr.get_pourbaix_entries(["Ag", "Te"])
-        pbx = PourbaixDiagram(data, filter_solids=True, conc_dict={"Ag": 1e-8, "Te": 1e-8})
-        self.assertEqual(len(pbx.stable_entries), 30)
-        test_entry = pbx.find_stable_entry(8, 2)
-        self.assertAlmostEqual(test_entry.energy, 2.3894017960000009, 1)
-
-        # Test custom ions
-        entries = mpr.get_pourbaix_entries(["Sn", "C", "Na"])
-        ion = IonEntry(Ion.from_formula("NaO28H80Sn12C24+"), -161.676)
-        custom_ion_entry = PourbaixEntry(ion, entry_id="my_ion")
-        pbx = PourbaixDiagram(
-            entries + [custom_ion_entry],
-            filter_solids=True,
-            comp_dict={"Na": 1, "Sn": 12, "C": 24},
-        )
-        self.assertAlmostEqual(pbx.get_decomposition_energy(custom_ion_entry, 5, 2), 2.1209002582, 1)
-
-        # Test against ion sets with multiple equivalent ions (Bi-V regression)
-        entries = mpr.get_pourbaix_entries(["Bi", "V"])
-        pbx = PourbaixDiagram(entries, filter_solids=True, conc_dict={"Bi": 1e-8, "V": 1e-8})
-        self.assertTrue(all(["Bi" in entry.composition and "V" in entry.composition for entry in pbx.all_entries]))
 
 
 class PourbaixPlotterTest(unittest.TestCase):

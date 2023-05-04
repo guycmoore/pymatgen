@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -9,6 +8,7 @@ from pymatgen.core import Structure
 from pymatgen.util.string import (
     disordered_formula,
     formula_double_format,
+    charge_string,
     htmlify,
     latexify,
     latexify_spacegroup,
@@ -50,32 +50,47 @@ class StringifyTest(unittest.TestCase):
 
 
 class FuncTest(unittest.TestCase):
-    # def test_latexify(self):
-    #     self.assertEqual(latexify("Li3Fe2(PO4)3"), "Li$_{3}$Fe$_{2}$(PO$_{4}$)$_{3}$")
-    #     self.assertEqual(latexify("Li0.2Na0.8Cl"), "Li$_{0.2}$Na$_{0.8}$Cl")
-    #
-    # def test_latexify_spacegroup(self):
-    #     self.assertEqual(latexify_spacegroup("Fd-3m"), "Fd$\\overline{3}$m")
-    #     self.assertEqual(latexify_spacegroup("P2_1/c"), "P2$_{1}$/c")
-    #
-    # def test_htmlify(self):
-    #     self.assertEqual(
-    #         htmlify("Li3Fe2(PO4)3"),
-    #         "Li<sub>3</sub>Fe<sub>2</sub>(PO<sub>4</sub>)<sub>3</sub>",
-    #     )
-    #     self.assertEqual(htmlify("Li0.2Na0.8Cl"), "Li<sub>0.2</sub>Na<sub>0.8</sub>Cl")
-    #
-    # def test_unicodeify(self):
-    #     self.assertEqual(unicodeify("Li3Fe2(PO4)3"), "Li₃Fe₂(PO₄)₃")
-    #     self.assertRaises(ValueError, unicodeify, "Li0.2Na0.8Cl")
-    #     self.assertEqual(unicodeify_species("O2+"), "O²⁺")
-    #     self.assertEqual(unicodeify_spacegroup("F-3m"), "F3̅m")
+    def test_latexify(self):
+        self.assertEqual(latexify("Li3Fe2(PO4)3"), "Li$_{3}$Fe$_{2}$(PO$_{4}$)$_{3}$")
+        self.assertEqual(latexify("Li0.2Na0.8Cl"), "Li$_{0.2}$Na$_{0.8}$Cl")
+
+    def test_latexify_spacegroup(self):
+        self.assertEqual(latexify_spacegroup("Fd-3m"), "Fd$\\overline{3}$m")
+        self.assertEqual(latexify_spacegroup("P2_1/c"), "P2$_{1}$/c")
+
+    def test_htmlify(self):
+        self.assertEqual(
+            htmlify("Li3Fe2(PO4)3"),
+            "Li<sub>3</sub>Fe<sub>2</sub>(PO<sub>4</sub>)<sub>3</sub>",
+        )
+        self.assertEqual(htmlify("Li0.2Na0.8Cl"), "Li<sub>0.2</sub>Na<sub>0.8</sub>Cl")
+
+    def test_unicodeify(self):
+        self.assertEqual(unicodeify("Li3Fe2(PO4)3"), "Li₃Fe₂(PO₄)₃")
+        self.assertRaises(ValueError, unicodeify, "Li0.2Na0.8Cl")
+        self.assertEqual(unicodeify_species("O2+"), "O²⁺")
+        self.assertEqual(unicodeify_spacegroup("F-3m"), "F3̅m")
 
     def test_formula_double_format(self):
         self.assertEqual(formula_double_format(1.00), "")
         self.assertEqual(formula_double_format(2.00), "2")
         self.assertEqual(formula_double_format(2.10), "2.1")
         self.assertEqual(formula_double_format(2.10000000002), "2.1")
+
+    def test_charge_string(self):
+        self.assertEqual(charge_string(1), "[+1]")
+        self.assertEqual(charge_string(1, brackets=False), "+1")
+        self.assertEqual(charge_string(1, explicit_one=False), "[+]")
+
+        self.assertEqual(charge_string(-1), "[-1]")
+        self.assertEqual(charge_string(-1, brackets=False), "-1")
+        self.assertEqual(charge_string(-1, explicit_one=False), "[-]")
+
+        self.assertEqual(charge_string(2), "[+2]")
+        self.assertEqual(charge_string(-4), "[-4]")
+        self.assertEqual(charge_string(3.5, brackets=False), "+3.5")
+
+        self.assertEqual(charge_string(0), "(aq)")
 
     def test_transformation_to_string(self):
         m = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]

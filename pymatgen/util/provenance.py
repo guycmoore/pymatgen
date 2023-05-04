@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -22,11 +21,7 @@ from pymatgen.core.structure import Molecule, Structure
 
 __author__ = "Anubhav Jain, Shyue Ping Ong"
 __credits__ = "Dan Gunter"
-__copyright__ = "Copyright 2013, The Materials Project"
-__version__ = "0.1"
-__maintainer__ = "Anubhav Jain"
-__email__ = "ajain@lbl.gov"
-__date__ = "Feb 11, 2013"
+
 
 MAX_HNODE_SIZE = 64000  # maximum size (bytes) of SNL HistoryNode
 MAX_DATA_SIZE = 256000  # maximum size (bytes) of SNL data field
@@ -113,9 +108,7 @@ class HistoryNode(namedtuple("HistoryNode", ["name", "url", "description"])):
             return HistoryNode.from_dict(h_node)
 
         if len(h_node) != 3:
-            raise ValueError(
-                "Invalid History node, " "should be dict or (name, version, " "description) tuple: {}".format(h_node)
-            )
+            raise ValueError(f"Invalid History node, should be dict or (name, version, description) tuple: {h_node}")
         return HistoryNode(h_node[0], h_node[1], h_node[2])
 
 
@@ -136,7 +129,7 @@ class Author(namedtuple("Author", ["name", "email"])):
         """
         String representation of an Author
         """
-        return "{} <{}>".format(self.name, self.email)
+        return f"{self.name} <{self.email}>"
 
     def as_dict(self):
         """
@@ -172,12 +165,12 @@ class Author(namedtuple("Author", ["name", "email"])):
             # >, whitespace
             m = re.match(r"\s*(.*?)\s*<(.*?@.*?)>\s*", author)
             if not m or m.start() != 0 or m.end() != len(author):
-                raise ValueError("Invalid author format! {}".format(author))
+                raise ValueError(f"Invalid author format! {author}")
             return Author(m.groups()[0], m.groups()[1])
         if isinstance(author, dict):
             return Author.from_dict(author)
         if len(author) != 2:
-            raise ValueError("Invalid author, should be String or (name, " "email) tuple: {}".format(author))
+            raise ValueError(f"Invalid author, should be String or (name, email) tuple: {author}")
         return Author(author[0], author[1])
 
 
@@ -238,9 +231,9 @@ class StructureNL:
 
         # check that references are valid BibTeX
         if not isinstance(references, str):
-            raise ValueError("Invalid format for SNL reference! Should be " "empty string or BibTeX string.")
+            raise ValueError("Invalid format for SNL reference! Should be empty string or BibTeX string.")
         if references and not is_valid_bibtex(references):
-            raise ValueError("Invalid format for SNL reference! Should be " "BibTeX string.")
+            raise ValueError("Invalid format for SNL reference! Should be BibTeX string.")
         if len(references) > MAX_BIBTEX_CHARS:
             raise ValueError(
                 "The BibTeX string must be fewer than {} chars "
@@ -278,14 +271,10 @@ class StructureNL:
         # check for valid history nodes
         history = history if history else []  # initialize null fields
         if len(history) > MAX_HNODES:
-            raise ValueError(
-                "A maximum of {} History nodes are supported, " "you have {}!".format(MAX_HNODES, len(history))
-            )
+            raise ValueError(f"A maximum of {MAX_HNODES} History nodes are supported, you have {len(history)}!")
         self.history = [HistoryNode.parse_history_node(h) for h in history]
-        if not all([sys.getsizeof(h) < MAX_HNODE_SIZE for h in history]):
-            raise ValueError(
-                "One or more history nodes exceeds the maximum " "size limit of {} bytes".format(MAX_HNODE_SIZE)
-            )
+        if not all(sys.getsizeof(h) < MAX_HNODE_SIZE for h in history):
+            raise ValueError(f"One or more history nodes exceeds the maximum size limit of {MAX_HNODE_SIZE} bytes")
 
         self.created_at = created_at if created_at else datetime.datetime.utcnow()
 
@@ -393,7 +382,7 @@ class StructureNL:
     def __str__(self):
         return "\n".join(
             [
-                "{}\n{}".format(k, getattr(self, k))
+                f"{k}\n{getattr(self, k)}"
                 for k in (
                     "structure",
                     "authors",

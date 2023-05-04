@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -9,6 +8,7 @@ Created on Jan 22, 2013
 @author: Bharat Medasani
 """
 import os
+import sys
 import unittest
 
 from monty.os.path import which
@@ -27,7 +27,10 @@ from pymatgen.core.structure import Structure
 from pymatgen.io.vasp.inputs import Poscar
 from pymatgen.util.testing import PymatgenTest
 
-gulp_present = which("gulp") and os.environ.get("GULP_LIB")
+gulp_present = which("gulp") and os.environ.get("GULP_LIB") and ("win" not in sys.platform)
+# disable gulp tests for now. Right now, it is compiled against libgfortran3, which is no longer supported in the new
+# Ubuntu 20.04.
+gulp_present = False
 
 
 @unittest.skipIf(not gulp_present, "gulp not present.")
@@ -247,7 +250,7 @@ class GulpIOTest(unittest.TestCase):
     def test_get_relaxed_structure(self):
         # Output string obtained from running GULP on a terminal
 
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "example21.gout"), "r") as fp:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "example21.gout")) as fp:
             out_str = fp.read()
         struct = self.gio.get_relaxed_structure(out_str)
         self.assertIsInstance(struct, Structure)

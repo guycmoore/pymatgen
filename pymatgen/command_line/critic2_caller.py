@@ -30,11 +30,11 @@ If you use this module, please cite the following:
 
 A. Otero-de-la-Roza, E. R. Johnson and V. Luaña,
 Comput. Phys. Commun. 185, 1007-1018 (2014)
-(http://dx.doi.org/10.1016/j.cpc.2013.10.026)
+(https://doi.org/10.1016/j.cpc.2013.10.026)
 
 A. Otero-de-la-Roza, M. A. Blanco, A. Martín Pendás and
 V. Luaña, Comput. Phys. Commun. 180, 157–166 (2009)
-(http://dx.doi.org/10.1016/j.cpc.2008.07.018)
+(https://doi.org/10.1016/j.cpc.2008.07.018)
 """
 
 import logging
@@ -71,8 +71,50 @@ class Critic2Caller:
         "Critic2Caller requires the executable critic to be in the path. "
         "Please follow the instructions at https://github.com/aoterodelaroza/critic2.",
     )
-    def __init__(
-        self,
+    def __init__(self, input_script):
+        """
+        Run Critic2 on a given input script
+
+        :param input_script: string defining the critic2 input
+        """
+
+        # store if examining the input script is useful,
+        # not otherwise used
+        self._input_script = input_script
+
+        with open("input_script.cri", "w") as f:
+            f.write(input_script)
+
+        args = ["critic2", "input_script.cri"]
+        with subprocess.Popen(args, stdout=subprocess.PIPE, stdin=subprocess.PIPE, close_fds=True) as rs:
+            stdout, stderr = rs.communicate()
+        stdout = stdout.decode()
+
+        if stderr:
+            stderr = stderr.decode()
+            warnings.warn(stderr)
+
+        if rs.returncode != 0:
+            raise RuntimeError(f"critic2 exited with return code {rs.returncode}: {stdout}")
+
+        self._stdout = stdout
+        self._stderr = stderr
+
+        if os.path.exists("cpreport.json"):
+            cpreport = loadfn("cpreport.json")
+        else:
+            cpreport = None
+        self._cpreport = cpreport
+
+        if os.path.exists("yt.json"):
+            yt = loadfn("yt.json")
+        else:
+            yt = None
+        self._yt = yt
+
+    @classmethod
+    def from_chgcar(
+        cls,
         structure,
         chgcar=None,
         chgcar_ref=None,
@@ -150,7 +192,7 @@ class Critic2Caller:
         if chgcar:
             input_script += ["load int.CHGCAR id chg_int", "integrable chg_int"]
             if zpsp:
-                zpsp_str = " zpsp " + " ".join(["{} {}".format(symbol, int(zval)) for symbol, zval in zpsp.items()])
+                zpsp_str = " zpsp " + " ".join([f"{symbol} {int(zval)}" for symbol, zval in zpsp.items()])
                 input_script[-2] += zpsp_str
 
         # Command to run automatic analysis
@@ -158,9 +200,9 @@ class Critic2Caller:
         for k, v in settings.items():
             if isinstance(v, list):
                 for item in v:
-                    auto += "{} {} ".format(k, item)
+                    auto += f"{k} {item} "
             else:
-                auto += "{} {} ".format(k, v)
+                auto += f"{k} {v} "
         input_script += [auto]
 
         if write_cml:
@@ -176,16 +218,9 @@ class Critic2Caller:
 
         input_script = "\n".join(input_script)
 
-        # store if examining the input script is useful,
-        # not otherwise used
-        self._input_script = input_script
-
         with ScratchDir(".") as temp_dir:
 
             os.chdir(temp_dir)
-
-            with open("input_script.cri", "w") as f:
-                f.write(input_script)
 
             structure.to(filename="POSCAR")
 
@@ -199,40 +234,18 @@ class Critic2Caller:
             elif chgcar_ref:
                 os.symlink(chgcar_ref, "ref.CHGCAR")
 
-            args = ["critic2", "input_script.cri"]
-            rs = subprocess.Popen(args, stdout=subprocess.PIPE, stdin=subprocess.PIPE, close_fds=True)
+            caller = cls(input_script)
 
-            stdout, stderr = rs.communicate()
-            stdout = stdout.decode()
-
-            if stderr:
-                stderr = stderr.decode()
-                warnings.warn(stderr)
-
-            if rs.returncode != 0:
-                raise RuntimeError("critic2 exited with return code {}: {}".format(rs.returncode, stdout))
-
-            self._stdout = stdout
-            self._stderr = stderr
-
-            if os.path.exists("cpreport.json"):
-                cpreport = loadfn("cpreport.json")
-            else:
-                cpreport = None
-
-            if os.path.exists("yt.json"):
-                yt = loadfn("yt.json")
-            else:
-                yt = None
-
-            self.output = Critic2Analysis(
+            caller.output = Critic2Analysis(
                 structure,
-                stdout=stdout,
-                stderr=stderr,
-                cpreport=cpreport,
-                yt=yt,
+                stdout=caller._stdout,
+                stderr=caller._stderr,
+                cpreport=caller._cpreport,
+                yt=caller._yt,
                 zpsp=zpsp,
             )
+
+            return caller
 
     @classmethod
     def from_path(cls, path, suffix="", zpsp=None):
@@ -294,7 +307,7 @@ class Critic2Caller:
 
             chgcar_ref = aeccar0.linear_add(aeccar2) if (aeccar0 and aeccar2) else None
 
-        return cls(chgcar.structure, chgcar, chgcar_ref, zpsp=zpsp)
+        return cls.from_chgcar(chgcar.structure, chgcar, chgcar_ref, zpsp=zpsp)
 
 
 class CriticalPointType(Enum):
@@ -361,7 +374,7 @@ class CriticalPoint(MSONable):
         return CriticalPointType(self._type)
 
     def __str__(self):
-        return "Critical Point: {} ({})".format(self.type.name, self.frac_coords)
+        return f"Critical Point: {self.type.name} ({self.frac_coords})"
 
     @property
     def laplacian(self):
@@ -474,7 +487,7 @@ class Critic2Analysis(MSONable):
             for idx, node in self.nodes.items():
                 cp = self.critical_points[node["unique_idx"]]
                 if cp.type.value in include_critical_points:
-                    specie = DummySpecies("X{}cp".format(cp.type.value[0]), oxidation_state=None)
+                    specie = DummySpecies(f"X{cp.type.value[0]}cp", oxidation_state=None)
                     structure.append(
                         specie,
                         node["frac_coords"],
@@ -693,9 +706,7 @@ class Critic2Analysis(MSONable):
         def get_volume_and_charge(nonequiv_idx):
             attractor = yt["integration"]["attractors"][nonequiv_idx - 1]
             if attractor["id"] != nonequiv_idx:
-                raise ValueError(
-                    "List of attractors may be un-ordered (wanted id={}): {}".format(nonequiv_idx, attractor)
-                )
+                raise ValueError(f"List of attractors may be un-ordered (wanted id={nonequiv_idx}): {attractor}")
             return (
                 attractor["integrals"][volume_idx],
                 attractor["integrals"][charge_idx],
@@ -731,7 +742,7 @@ class Critic2Analysis(MSONable):
 
         if zpsp:
             if len(charge_transfer) != len(charges):
-                warnings.warn("Something went wrong calculating charge transfer: {}".format(charge_transfer))
+                warnings.warn(f"Something went wrong calculating charge transfer: {charge_transfer}")
             else:
                 structure.add_site_property("bader_charge_transfer", charge_transfer)
 

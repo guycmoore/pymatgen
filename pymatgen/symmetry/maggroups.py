@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -22,12 +21,7 @@ from pymatgen.symmetry.settings import JonesFaithfulTransformation
 from pymatgen.util.string import transformation_to_string
 
 __author__ = "Matthew Horton, Shyue Ping Ong"
-__copyright__ = "Copyright 2017, The Materials Project"
-__version__ = "0.1"
-__maintainer__ = "Matthew Horton"
-__email__ = "mkhorton@lbl.gov"
-__status__ = "Beta"
-__date__ = "Feb 2017"
+
 
 MAGSYMM_DATA = os.path.join(os.path.dirname(__file__), "symm_data_magnetic.sqlite")
 
@@ -169,7 +163,7 @@ class MagneticSpaceGroup(SymmetryGroup):
                     time_reversal=time_reversal,
                 )
                 # store string representation, e.g. (2x|1/2,1/2,1/2)'
-                seitz = "({0}|{1},{2},{3})".format(
+                seitz = "({}|{},{},{})".format(
                     point_operator["symbol"],
                     Fraction(translation_vec[0]),
                     Fraction(translation_vec[1]),
@@ -247,7 +241,7 @@ class MagneticSpaceGroup(SymmetryGroup):
                 lattice.append(
                     {
                         "vector": [r[0] / r[3], r[1] / r[3], r[2] / r[3]],
-                        "str": "({0},{1},{2})+".format(
+                        "str": "({},{},{})+".format(
                             Fraction(r[0] / r[3]).limit_denominator(),
                             Fraction(r[1] / r[3]).limit_denominator(),
                             Fraction(r[2] / r[3]).limit_denominator(),
@@ -419,7 +413,7 @@ class MagneticSpaceGroup(SymmetryGroup):
         crys_system = self.crystal_system
 
         def check(param, ref, tolerance):
-            return all([abs(i - j) < tolerance for i, j in zip(param, ref) if j is not None])
+            return all(abs(i - j) < tolerance for i, j in zip(param, ref) if j is not None)
 
         if crys_system == "cubic":
             a = abc[0]
@@ -547,9 +541,9 @@ class MagneticSpaceGroup(SymmetryGroup):
                 break_on_hyphens=False,
             )
 
-            description += (
-                "\n{d[og_operators]}\n" "Wyckoff Positions (OG): {d[og_lattice]}\n" "{d[og_wyckoff]}"
-            ).format(d=desc)
+            description += ("\n{d[og_operators]}\nWyckoff Positions (OG): {d[og_lattice]}\n" "{d[og_wyckoff]}").format(
+                d=desc
+            )
         elif desc["magtype"] == 4:
             description += "\nAlternative OG setting exists for this space group."
 
@@ -582,7 +576,6 @@ def _write_all_magnetic_space_groups_to_file(filename):
     for i in range(1, 1652):
         all_msgs.append(MagneticSpaceGroup(i))
     for msg in all_msgs:
-        s += "\n{}\n\n--------\n".format(msg.data_str())
-    f = open(filename, "w")
-    f.write(s)
-    f.close()
+        s += f"\n{msg.data_str()}\n\n--------\n"
+    with open(filename, "w") as f:
+        f.write(s)

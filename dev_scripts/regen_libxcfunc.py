@@ -6,7 +6,6 @@ The script parses this file, creates a new json file inside pymatgen.core
 and update the enum values declared in LibxcFunc.
 The script must be executed inside pymatgen/dev_scripts.
 """
-from __future__ import print_function, division, unicode_literals
 
 import sys
 import os
@@ -31,7 +30,7 @@ def parse_libxc_docs(path):
         return int(d["Number"]), d
 
     d = OrderedDict()
-    with open(path, "rt") as fh:
+    with open(path) as fh:
         section = []
         for line in fh:
             if not line.startswith("-"):
@@ -49,6 +48,7 @@ def parse_libxc_docs(path):
 def write_libxc_docs_json(xcfuncs, jpath):
     """Write json file with libxc metadata to path jpath."""
     from copy import deepcopy
+
     xcfuncs = deepcopy(xcfuncs)
 
     # Remove XC_FAMILY from Family and XC_ from Kind to make strings more human-readable.
@@ -97,20 +97,20 @@ def main():
     for num, d in xcfuncs.items():
         # Remove XC_ from codename
         codename = d["Codename"][3:]
-        enum_list.append("    %s = %s" % (codename, num))
+        enum_list.append(f"    {codename} = {num}")
     enum_list = "\n".join(enum_list) + "\n"
 
     # Re-generate enumerations.
     # [0] read py module.
     xcfuncpy_path = os.path.join(pycore, "libxcfunc.py")
-    with open(xcfuncpy_path, "rt") as fh:
+    with open(xcfuncpy_path) as fh:
         lines = fh.readlines()
 
     # [1] insert new enum values in list
     start = lines.index("#begin_include_dont_touch\n")
     stop = lines.index("#end_include_dont_touch\n")
     lines.insert(stop, enum_list)
-    del lines[start + 1:stop]
+    del lines[start + 1 : stop]
 
     # [2] write new py module
     with open(xcfuncpy_path, "wt") as fh:

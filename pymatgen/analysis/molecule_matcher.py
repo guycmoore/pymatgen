@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -16,10 +15,7 @@ you can find at https://github.com/charnley/rmsd.
 
 __author__ = "Xiaohui Qu, Adam Fekete"
 __version__ = "1.0"
-__maintainer__ = "Xiaohui Qu"
 __email__ = "xhqu1981@gmail.com"
-__status__ = "Development"
-__date__ = "Aug 21, 2020"
 
 
 import abc
@@ -99,12 +95,8 @@ class AbstractMolAtomMapper(MSONable, metaclass=abc.ABCMeta):
             AbstractMolAtomMapper
         """
         for trans_modules in ["molecule_matcher"]:
-            import sys
 
-            if sys.version_info > (3, 0):
-                level = 0  # Python 3.x
-            else:
-                level = -1  # Python 2.x
+            level = 0  # Python 3.x
             mod = __import__(
                 "pymatgen.analysis." + trans_modules,
                 globals(),
@@ -157,7 +149,7 @@ class IsomorphismMolAtomMapper(AbstractMolAtomMapper):
         isomapper.MapAll(obmol2, isomorph)
 
         sorted_isomorph = [sorted(x, key=lambda morp: morp[0]) for x in isomorph]
-        label2_list = tuple([tuple([p[1] + 1 for p in x]) for x in sorted_isomorph])
+        label2_list = tuple(tuple(p[1] + 1 for p in x) for x in sorted_isomorph)
 
         vmol1 = obmol1
         aligner = ob.OBAlign(True, False)
@@ -188,8 +180,8 @@ class IsomorphismMolAtomMapper(AbstractMolAtomMapper):
         Return inchi as molecular hash
         """
         obconv = ob.OBConversion()
-        obconv.SetOutFormat(str("inchi"))
-        obconv.AddOption(str("X"), ob.OBConversion.OUTOPTIONS, str("DoNotAddH"))
+        obconv.SetOutFormat("inchi")
+        obconv.AddOption("X", ob.OBConversion.OUTOPTIONS, "DoNotAddH")
         inchi_text = obconv.WriteString(mol)
         match = re.search(r"InChI=(?P<inchi>.+)\n", inchi_text)
         return match.group("inchi")
@@ -267,9 +259,9 @@ class InchiMolAtomMapper(AbstractMolAtomMapper):
             List of equivalent atoms.
         """
         obconv = ob.OBConversion()
-        obconv.SetOutFormat(str("inchi"))
-        obconv.AddOption(str("a"), ob.OBConversion.OUTOPTIONS)
-        obconv.AddOption(str("X"), ob.OBConversion.OUTOPTIONS, str("DoNotAddH"))
+        obconv.SetOutFormat("inchi")
+        obconv.AddOption("a", ob.OBConversion.OUTOPTIONS)
+        obconv.AddOption("X", ob.OBConversion.OUTOPTIONS, "DoNotAddH")
         inchi_text = obconv.WriteString(mol)
         match = re.search(
             r"InChI=(?P<inchi>.+)\nAuxInfo=.+" r"/N:(?P<labels>[0-9,;]+)/(E:(?P<eq_atoms>[0-9," r";\(\)]*)/)?",
@@ -278,11 +270,11 @@ class InchiMolAtomMapper(AbstractMolAtomMapper):
         inchi = match.group("inchi")
         label_text = match.group("labels")
         eq_atom_text = match.group("eq_atoms")
-        heavy_atom_labels = tuple([int(i) for i in label_text.replace(";", ",").split(",")])
+        heavy_atom_labels = tuple(int(i) for i in label_text.replace(";", ",").split(","))
         eq_atoms = []
         if eq_atom_text is not None:
             eq_tokens = re.findall(r"\(((?:[0-9]+,)+[0-9]+)\)", eq_atom_text.replace(";", ","))
-            eq_atoms = tuple([tuple([int(i) for i in t.split(",")]) for t in eq_tokens])
+            eq_atoms = tuple(tuple(int(i) for i in t.split(",")) for t in eq_tokens)
         return heavy_atom_labels, eq_atoms, inchi
 
     @staticmethod
@@ -433,7 +425,7 @@ class InchiMolAtomMapper(AbstractMolAtomMapper):
 
         canon_inchi_orig_map2 = list(zip(canon_label2, list(range(1, nheavy + 1)), ilabel2))
         canon_inchi_orig_map2.sort(key=lambda m: m[0])
-        heavy_atom_indices2 = tuple([x[2] for x in canon_inchi_orig_map2])
+        heavy_atom_indices2 = tuple(x[2] for x in canon_inchi_orig_map2)
         return heavy_atom_indices2
 
     @staticmethod
@@ -696,7 +688,7 @@ class MoleculeMatcher(MSONable):
         mol_hash.sort(key=lambda x: x[1])
 
         # Use molecular hash to pre-group molecules.
-        raw_groups = tuple([tuple([m[0] for m in g]) for k, g in itertools.groupby(mol_hash, key=lambda x: x[1])])
+        raw_groups = tuple(tuple(m[0] for m in g) for k, g in itertools.groupby(mol_hash, key=lambda x: x[1]))
 
         group_indices = []
         for rg in raw_groups:
@@ -792,7 +784,7 @@ class KabschMatcher(MSONable):
             RMSD : Root mean squared deviation between P and Q
         """
         if self.target.atomic_numbers != p.atomic_numbers:
-            raise ValueError("The order of the species aren't matching! " "Please try using `PermInvMatcher`.")
+            raise ValueError("The order of the species aren't matching! Please try using `PermInvMatcher`.")
 
         p_coord, q_coord = p.cart_coords, self.target.cart_coords
 
@@ -1343,13 +1335,11 @@ class GeneticOrderMatcher(KabschMatcher):
                     if rmsd > self.threshold:
                         continue
 
-                    logger.debug("match - rmsd: {}, inds: {}".format(rmsd, inds))
+                    logger.debug(f"match - rmsd: {rmsd}, inds: {inds}")
                     matches.append(inds)
 
             partial_matches = matches
 
-            logger.info(
-                "number of atom in the fragment: {}, " "number of possible matches: {}".format(i + 1, len(matches))
-            )
+            logger.info(f"number of atom in the fragment: {i + 1}, number of possible matches: {len(matches)}")
 
         return matches

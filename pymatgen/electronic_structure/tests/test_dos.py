@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -24,7 +23,7 @@ from pymatgen.util.testing import PymatgenTest
 
 class DosTest(unittest.TestCase):
     def setUp(self):
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json")) as f:
             self.dos = CompleteDos.from_dict(json.load(f))
 
     def test_get_gap(self):
@@ -49,10 +48,20 @@ class DosTest(unittest.TestCase):
         for spin in Spin:
             self.assertAlmostEqual(sum(dens[spin]), sum(smeared[spin]))
 
+    def test_as_dict(self):
+        dos_dict = self.dos.as_dict()
+        self.assertIsInstance(dos_dict["energies"], list)
+        self.assertIsInstance(dos_dict["energies"][0], float)
+        self.assertNotIsInstance(dos_dict["energies"][0], np.float64)
+
+        self.assertIsInstance(dos_dict["densities"]["1"], list)
+        self.assertIsInstance(dos_dict["densities"]["1"][0], float)
+        self.assertNotIsInstance(dos_dict["densities"]["1"][0], np.float64)
+
 
 class FermiDosTest(unittest.TestCase):
     def setUp(self):
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json")) as f:
             self.dos = CompleteDos.from_dict(json.load(f))
         self.dos = FermiDos(self.dos)
 
@@ -84,12 +93,22 @@ class FermiDosTest(unittest.TestCase):
 
         self.assertAlmostEqual(sci_dos.get_fermi_interextrapolated(-1e26, 300), 7.5108, 4)
         self.assertAlmostEqual(sci_dos.get_fermi_interextrapolated(1e26, 300), -1.4182, 4)
-        self.assertAlmostEqual(sci_dos.get_fermi_interextrapolated(0.0, 300), 2.5226, 4)
+        self.assertAlmostEqual(sci_dos.get_fermi_interextrapolated(0.0, 300), 2.9071, 4)
+
+    def test_as_dict(self):
+        dos_dict = self.dos.as_dict()
+        self.assertIsInstance(dos_dict["energies"], list)
+        self.assertIsInstance(dos_dict["energies"][0], float)
+        self.assertNotIsInstance(dos_dict["energies"][0], np.float64)
+
+        self.assertIsInstance(dos_dict["densities"]["1"], list)
+        self.assertIsInstance(dos_dict["densities"]["1"][0], float)
+        self.assertNotIsInstance(dos_dict["densities"]["1"][0], np.float64)
 
 
 class CompleteDosTest(unittest.TestCase):
     def setUp(self):
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json")) as f:
             self.dos = CompleteDos.from_dict(json.load(f))
 
     def test_get_gap(self):
@@ -155,10 +174,20 @@ class CompleteDosTest(unittest.TestCase):
     def test_str(self):
         self.assertIsNotNone(str(self.dos))
 
+    def test_as_dict(self):
+        dos_dict = self.dos.as_dict()
+        self.assertIsInstance(dos_dict["energies"], list)
+        self.assertIsInstance(dos_dict["energies"][0], float)
+        self.assertNotIsInstance(dos_dict["energies"][0], np.float64)
+
+        self.assertIsInstance(dos_dict["densities"]["1"], list)
+        self.assertIsInstance(dos_dict["densities"]["1"][0], float)
+        self.assertNotIsInstance(dos_dict["densities"]["1"][0], np.float64)
+
 
 class DOSTest(PymatgenTest):
     def setUp(self):
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "complete_dos.json")) as f:
             d = json.load(f)
             y = list(zip(d["densities"]["1"], d["densities"]["-1"]))
             self.dos = DOS(d["energies"], y, d["efermi"])
@@ -193,27 +222,27 @@ class SpinPolarizationTest(unittest.TestCase):
 class LobsterCompleteDosTest(unittest.TestCase):
     def setUp(self):
 
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_spin.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_spin.json")) as f:
             data_spin = json.load(f)
         self.LobsterCompleteDOS_spin = LobsterCompleteDos.from_dict(data_spin)
 
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_nonspin.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_nonspin.json")) as f:
             data_nonspin = json.load(f)
         self.LobsterCompleteDOS_nonspin = LobsterCompleteDos.from_dict(data_nonspin)
 
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "structure_KF.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "structure_KF.json")) as f:
             data_structure = json.load(f)
         self.structure = Structure.from_dict(data_structure)
 
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_MnO.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_MnO.json")) as f:
             data_MnO = json.load(f)
         self.LobsterCompleteDOS_MnO = LobsterCompleteDos.from_dict(data_MnO)
 
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_MnO_nonspin.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "LobsterCompleteDos_MnO_nonspin.json")) as f:
             data_MnO_nonspin = json.load(f)
         self.LobsterCompleteDOS_MnO_nonspin = LobsterCompleteDos.from_dict(data_MnO_nonspin)
 
-        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "structure_MnO.json"), "r") as f:
+        with open(os.path.join(PymatgenTest.TEST_FILES_DIR, "structure_MnO.json")) as f:
             data_MnO = json.load(f)
         self.structure_MnO = Structure.from_dict(data_MnO)
 

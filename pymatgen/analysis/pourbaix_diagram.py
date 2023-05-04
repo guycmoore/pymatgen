@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 """
@@ -21,19 +20,16 @@ import warnings
 from copy import deepcopy
 from functools import cmp_to_key, lru_cache, partial
 from multiprocessing import Pool
+from typing import Optional, Union, List, Dict
 
 import numpy as np
 from monty.json import MontyDecoder, MSONable
-from monty.dev import deprecated
 from scipy.spatial import ConvexHull, HalfspaceIntersection
 
 try:
     from scipy.special import comb
 except ImportError:
     from scipy.misc import comb
-
-from tqdm import tqdm
-
 
 from pymatgen.analysis.phase_diagram import PDEntry, PhaseDiagram
 from pymatgen.analysis.reaction_calculator import Reaction, ReactionError
@@ -44,7 +40,8 @@ from pymatgen.entries.compatibility import MU_H2O
 from pymatgen.entries.computed_entries import ComputedEntry
 from pymatgen.util.coord import Simplex
 from pymatgen.util.plotting import pretty_plot
-from pymatgen.util.string import latexify
+from pymatgen.util.string import Stringify
+from pymatgen.util.sequence import PBar
 
 
 __author__ = "Sai Jayaraman"
@@ -65,7 +62,7 @@ PREFAC = 0.0591
 # TODO: PourbaixEntries depend implicitly on having entry energies be
 #       formation energies, should be a better way to get from raw energies
 # TODO: uncorrected_energy is a bit of a misnomer, but not sure what to rename
-class PourbaixEntry(MSONable):
+class PourbaixEntry(MSONable, Stringify):
     """
     An object encompassing all data relevant to a solid or ion
     in a pourbaix diagram.  Each bulk solid/ion has an energy
@@ -232,13 +229,13 @@ class PourbaixEntry(MSONable):
     @classmethod
     def from_dict(cls, d):
         """
-        Invokes
+        Invokes a PourbaixEntry from a dictionary
         """
         entry_type = d["entry_type"]
         if entry_type == "Ion":
             entry = IonEntry.from_dict(d["entry"])
         else:
-            entry = PDEntry.from_dict(d["entry"])
+            entry = MontyDecoder().process_decoded(d["entry"])
         entry_id = d["entry_id"]
         concentration = d["concentration"]
         return PourbaixEntry(entry, entry_id, concentration)
@@ -263,6 +260,15 @@ class PourbaixEntry(MSONable):
         Return number of atoms in current formula. Useful for normalization
         """
         return self.composition.num_atoms
+
+    def to_pretty_string(self) -> str:
+        """
+        :return: A pretty string representation.
+        """
+        if self.phase_type == "Solid":
+            return self.entry.composition.reduced_formula + "(s)"
+
+        return self.entry.name
 
     def __repr__(self):
         return "Pourbaix Entry : {} with energy = {:.4f}, npH = {}, nPhi = {}, nH2O = {}, entry_id = {} ".format(
@@ -321,7 +327,7 @@ class MultiEntry(PourbaixEntry):
             else:
                 start = 0
             return sum(
-                [getattr(e, item) * w for e, w in zip(self.entry_list, self.weights)],
+                (getattr(e, item) * w for e, w in zip(self.entry_list, self.weights)),
                 start,
             )
 
@@ -416,7 +422,7 @@ class IonEntry(PDEntry):
         return d
 
     def __repr__(self):
-        return "IonEntry : {} with energy = {:.4f}".format(self.composition, self.energy)
+        return f"IonEntry : {self.composition} with energy = {self.energy:.4f}"
 
     def __str__(self):
         return self.__repr__()
@@ -460,7 +466,14 @@ class PourbaixDiagram(MSONable):
     Class to create a Pourbaix diagram from entries
     """
 
-    def __init__(self, entries, comp_dict=None, conc_dict=None, filter_solids=False, nproc=None):
+    def __init__(
+        self,
+        entries: Union[List[PourbaixEntry], List[MultiEntry]],
+        comp_dict: Optional[Dict[str, float]] = None,
+        conc_dict: Optional[Dict[str, float]] = None,
+        filter_solids: bool = True,
+        nproc: Optional[int] = None,
+    ):
         """
         Args:
             entries ([PourbaixEntry] or [MultiEntry]): Entries list
@@ -469,19 +482,25 @@ class PourbaixDiagram(MSONable):
                 defaults to equal parts of each elements
             conc_dict ({str: float}): Dictionary of ion concentrations,
                 defaults to 1e-6 for each element
-            filter_solids (bool): applying this filter to a pourbaix
-                diagram ensures all included phases are filtered by
-                stability on the compositional phase diagram.  This
-                breaks some of the functionality of the analysis,
-                though, so use with caution.
+            filter_solids (bool): applying this filter to a Pourbaix
+                diagram ensures all included solid phases are filtered by
+                stability on the compositional phase diagram. Defaults to True.
+                The practical consequence of this is that highly oxidized or reduced
+                phases that might show up in experiments due to kinetic limitations
+                on oxygen/hydrogen evolution won't appear in the diagram, but they are
+                not actually "stable" (and are frequently overstabilized from DFT errors).
+                Hence, including only the stable solid phases generally leads to the
+                most accurate Pourbaix diagrams.
             nproc (int): number of processes to generate multientries with
                 in parallel.  Defaults to None (serial processing)
         """
         entries = deepcopy(entries)
+        self.filter_solids = filter_solids
 
         # Get non-OH elements
-        self.pbx_elts = set(itertools.chain.from_iterable([entry.composition.elements for entry in entries]))
-        self.pbx_elts = list(self.pbx_elts - ELEMENTS_HO)
+        self.pbx_elts = list(
+            set(itertools.chain.from_iterable([entry.composition.elements for entry in entries])) - ELEMENTS_HO
+        )
         self.dim = len(self.pbx_elts) - 1
 
         # Process multientry inputs
@@ -518,21 +537,20 @@ class PourbaixDiagram(MSONable):
                 if len(ion_elts) == 1:
                     entry.concentration = conc_dict[ion_elts[0].symbol] * entry.normalization_factor
                 elif len(ion_elts) > 1 and not entry.concentration:
-                    raise ValueError("Elemental concentration not compatible " "with multi-element ions")
+                    raise ValueError("Elemental concentration not compatible with multi-element ions")
 
             self._unprocessed_entries = solid_entries + ion_entries
 
             if not len(solid_entries + ion_entries) == len(entries):
                 raise ValueError("All supplied entries must have a phase type of " 'either "Solid" or "Ion"')
 
-            if filter_solids:
+            if self.filter_solids:
                 # O is 2.46 b/c pbx entry finds energies referenced to H2O
                 entries_HO = [ComputedEntry("H", 0), ComputedEntry("O", 2.46)]
                 solid_pd = PhaseDiagram(solid_entries + entries_HO)
                 solid_entries = list(set(solid_pd.stable_entries) - set(entries_HO))
 
             self._filtered_entries = solid_entries + ion_entries
-
             if len(comp_dict) > 1:
                 self._multielement = True
                 self._processed_entries = self._preprocess_pourbaix_entries(self._filtered_entries, nproc=nproc)
@@ -642,7 +660,7 @@ class PourbaixDiagram(MSONable):
         combos = []
         for facet in valid_facets:
             for i in range(1, self.dim + 2):
-                these_combos = list()
+                these_combos = []
                 for combo in itertools.combinations(facet, i):
                     these_entries = [min_entries[i] for i in combo]
                     these_combos.append(frozenset(these_entries))
@@ -661,11 +679,11 @@ class PourbaixDiagram(MSONable):
         if nproc is not None:
             f = partial(self.process_multientry, prod_comp=tot_comp)
             with Pool(nproc) as p:
-                multi_entries = list(tqdm(p.imap(f, all_combos), total=len(all_combos)))
+                multi_entries = list(PBar(p.imap(f, all_combos), total=len(all_combos)))
             multi_entries = list(filter(bool, multi_entries))
         else:
             # Serial processing of multi-entry generation
-            for combo in tqdm(all_combos):
+            for combo in PBar(all_combos):
                 multi_entry = self.process_multientry(combo, prod_comp=tot_comp)
                 if multi_entry:
                     multi_entries.append(multi_entry)
@@ -698,17 +716,15 @@ class PourbaixDiagram(MSONable):
 
         # Generate and filter entries
         processed_entries = []
-        total = sum([comb(len(entries), j + 1) for j in range(N)])
+        total = sum(comb(len(entries), j + 1) for j in range(N))
         if total > 1e6:
-            warnings.warn(
-                "Your pourbaix diagram includes {} entries and may " "take a long time to generate.".format(total)
-            )
+            warnings.warn(f"Your pourbaix diagram includes {total} entries and may take a long time to generate.")
 
         # Parallel processing of multi-entry generation
         if nproc is not None:
             f = partial(self.process_multientry, prod_comp=total_comp)
             with Pool(nproc) as p:
-                processed_entries = list(tqdm(p.imap(f, entry_combos), total=total))
+                processed_entries = list(PBar(p.imap(f, entry_combos), total=total))
             processed_entries = list(filter(bool, processed_entries))
         # Serial processing of multi-entry generation
         else:
@@ -751,7 +767,7 @@ class PourbaixDiagram(MSONable):
 
             # Check if reaction coeff threshold met for pourbaix compounds
             # All reactant/product coefficients must be positive nonzero
-            if all([coeff > coeff_threshold for coeff in all_coeffs]):
+            if all(coeff > coeff_threshold for coeff in all_coeffs):
                 return MultiEntry(entry_list, weights=react_coeffs)
 
             return None
@@ -876,7 +892,7 @@ class PourbaixDiagram(MSONable):
             {elt: coeff for elt, coeff in entry.composition.items() if elt not in ELEMENTS_HO}
         ).fractional_composition
         if entry_pbx_comp != pbx_comp:
-            raise ValueError("Composition of stability entry does not match " "Pourbaix Diagram")
+            raise ValueError("Composition of stability entry does not match Pourbaix Diagram")
         entry_normalized_energy = entry.normalized_energy_at_conditions(pH, V)
         hull_energy = self.get_hull_energy(pH, V)
         decomposition_energy = entry_normalized_energy - hull_energy
@@ -948,24 +964,31 @@ class PourbaixDiagram(MSONable):
         """
         return self._unprocessed_entries
 
-    def as_dict(self, include_unprocessed_entries=False):
+    def as_dict(self, include_unprocessed_entries=None):
         """
         Args:
-            include_unprocessed_entries (): Whether to include unprocessed entries.
+            include_unprocessed_entries (): DEPRECATED. Whether to include unprocessed
+                entries (equivalent to filter_solids=False). Serialization now includes
+                all unprocessed entries by default. Set filter_solids=False before
+                serializing to include unstable solids from the generated Pourbaix Diagram.
 
         Returns:
             MSONable dict.
         """
         if include_unprocessed_entries:
-            entries = [e.as_dict() for e in self._unprocessed_entries]
-        else:
-            entries = [e.as_dict() for e in self._processed_entries]
+            warnings.warn(
+                DeprecationWarning(
+                    "The include_unprocessed_entries kwarg is deprecated! "
+                    "Set filter_solids=True / False before serializing instead."
+                )
+            )
         d = {
             "@module": self.__class__.__module__,
             "@class": self.__class__.__name__,
-            "entries": entries,
+            "entries": [e.as_dict() for e in self._unprocessed_entries],
             "comp_dict": self._elt_comp,
             "conc_dict": self._conc_dict,
+            "filter_solids": self.filter_solids,
         }
         return d
 
@@ -979,7 +1002,7 @@ class PourbaixDiagram(MSONable):
             PourbaixDiagram
         """
         decoded_entries = MontyDecoder().process_decoded(d["entries"])
-        return cls(decoded_entries, d.get("comp_dict"), d.get("conc_dict"))
+        return cls(decoded_entries, d.get("comp_dict"), d.get("conc_dict"), d.get("filter_solids"))
 
 
 class PourbaixPlotter:
@@ -1106,7 +1129,7 @@ class PourbaixPlotter:
         # Plot stability map
         plt.pcolor(pH, V, stability, cmap=cmap, vmin=0, vmax=e_hull_max)
         cbar = plt.colorbar()
-        cbar.set_label("Stability of {} (eV/atom)".format(generate_entry_label(entry)))
+        cbar.set_label(f"Stability of {generate_entry_label(entry)} (eV/atom)")
 
         # Set ticklabels
         # ticklabels = [t.get_text() for t in cbar.ax.get_yticklabels()]
@@ -1136,23 +1159,12 @@ def generate_entry_label(entry):
         entry (PourbaixEntry or MultiEntry): entry to get a label for
     """
     if isinstance(entry, MultiEntry):
-        return " + ".join([latexify_ion(latexify(e.name)) for e in entry.entry_list])
+        return " + ".join([e.name for e in entry.entry_list])
 
-    return latexify_ion(latexify(entry.name))
-
-
-@deprecated(
-    message="These methods have been deprecated in favor of using the Stringify mix-in class, which provides"
-    "to_latex_string, to_unicode_string, etc. They will be removed in v2022."
-)
-def latexify_ion(formula):
-    """
-    Convert a formula to latex format.
-
-    Args:
-        formula (str): Formula
-
-    Returns:
-        Latex string.
-    """
-    return re.sub(r"()\[([^)]*)\]", r"\1$^{\2}$", formula)
+    # TODO - a more elegant solution could be added later to Stringify
+    # for example, the pattern re.sub(r"([-+][\d\.]*)", r"$^{\1}$", )
+    # will convert B(OH)4- to B(OH)$_4^-$.
+    # for this to work, the ion's charge always must be written AFTER
+    # the sign (e.g., Fe+2 not Fe2+)
+    string = entry.to_latex_string()
+    return re.sub(r"()\[([^)]*)\]", r"\1$^{\2}$", string)

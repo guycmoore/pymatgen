@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.
 
@@ -19,12 +18,6 @@ from pymatgen.util.string import transformation_to_string
 from pymatgen.util.typing import ArrayLike
 
 __author__ = "Shyue Ping Ong, Shyam Dwaraknath, Matthew Horton"
-__copyright__ = "Copyright 2011, The Materials Project"
-__version__ = "1.0"
-__maintainer__ = "Shyue Ping Ong"
-__email__ = "shyuep@gmail.com"
-__status__ = "Production"
-__date__ = "Sep 23, 2011"
 
 
 class SymmOp(MSONable):
@@ -79,7 +72,7 @@ class SymmOp(MSONable):
         if rotation_matrix.shape != (3, 3):
             raise ValueError("Rotation Matrix must be a 3x3 numpy array.")
         if translation_vec.shape != (3,):
-            raise ValueError("Translation vector must be a rank 1 numpy array " "with 3 elements.")
+            raise ValueError("Translation vector must be a rank 1 numpy array with 3 elements.")
         affine_matrix = np.eye(4)
         affine_matrix[0:3][:, 0:3] = rotation_matrix
         affine_matrix[0:3][:, 3] = translation_vec
@@ -153,7 +146,7 @@ class SymmOp(MSONable):
         """
         dim = tensor.shape
         rank = len(dim)
-        assert all([i == 3 for i in dim])
+        assert all(i == 3 for i in dim)
         # Build einstein sum string
         lc = string.ascii_lowercase
         indices = lc[:rank], lc[rank : 2 * rank]
@@ -481,9 +474,7 @@ class MagSymmOp(SymmOp):
         """
         SymmOp.__init__(self, affine_transformation_matrix, tol=tol)
         if time_reversal not in (-1, 1):
-            raise Exception(
-                "Time reversal operator not well defined: {0}, {1}".format(time_reversal, type(time_reversal))
-            )
+            raise Exception(f"Time reversal operator not well defined: {time_reversal}, {type(time_reversal)}")
         self.time_reversal = time_reversal
 
     def __eq__(self, other):
@@ -597,7 +588,7 @@ class MagSymmOp(SymmOp):
         '-y+1/2, x+1/2, z+1/2, +1', etc. Only works for integer rotation matrices
         """
         xyzt_string = SymmOp.as_xyz_string(self)
-        return xyzt_string + ", {:+}".format(self.time_reversal)
+        return xyzt_string + f", {self.time_reversal:+}"
 
     def as_dict(self) -> dict:
         """

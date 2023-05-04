@@ -23,7 +23,7 @@ class TrajectoryTest(PymatgenTest):
         if traj_1.species != traj_2.species:
             return False
 
-        return all([i == j for i, j in zip(self.traj, traj_2)])
+        return all(i == j for i, j in zip(self.traj, traj_2))
 
     def test_single_index_slice(self):
         self.assertTrue(all([self.traj[i] == self.structures[i] for i in range(0, len(self.structures), 19)]))
@@ -496,8 +496,15 @@ class TrajectoryTest(PymatgenTest):
 
         # Check if lattices were properly stored
         self.assertTrue(
-            all([np.allclose(struct.lattice.matrix, structures[i].lattice.matrix) for i, struct in enumerate(traj)])
+            all(np.allclose(struct.lattice.matrix, structures[i].lattice.matrix) for i, struct in enumerate(traj))
         )
+
+        # Check if the file is written correctly when lattice is not constant.
+        traj.write_Xdatcar(filename="traj_test_XDATCAR")
+        # Load trajectory from written xdatcar and compare to original
+        written_traj = Trajectory.from_file("traj_test_XDATCAR", constant_lattice=False)
+        self._check_traj_equality(traj, written_traj)
+        os.remove("traj_test_XDATCAR")
 
     def test_to_from_dict(self):
         d = self.traj.as_dict()
