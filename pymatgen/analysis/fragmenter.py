@@ -1,9 +1,8 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
-
 """
 Perform fragmentation of molecules.
 """
+
+from __future__ import annotations
 
 import copy
 import logging
@@ -95,7 +94,6 @@ class Fragmenter(MSONable):
         self.unique_frag_dict = {}  # all fragments from both the given molecule and prev_unique_frag_dict
 
         if depth == 0:  # Non-iterative, find all possible fragments:
-
             # Find all unique fragments besides those involving ring opening
             self.all_unique_frag_dict = self.mol_graph.build_unique_fragments()
 
@@ -174,7 +172,7 @@ class Fragmenter(MSONable):
         Perform one step of iterative fragmentation on a list of molecule graphs. Loop through the graphs,
         then loop through each graph's edges and attempt to remove that edge in order to obtain two
         disconnected subgraphs, aka two new fragments. If successful, check to see if the new fragments
-        are already present in self.unique_fragments, and append them if not. If unsucessful, we know
+        are already present in self.unique_fragments, and append them if not. If unsuccessful, we know
         that edge belongs to a ring. If we are opening rings, do so with that bond, and then again
         check if the resulting fragment is present in self.unique_fragments and add it if it is not.
         """
@@ -196,12 +194,15 @@ class Fragmenter(MSONable):
                             + str(len(fragment.graph.edges()))
                         )
                         proceed = True
-                        if self.assume_previous_thoroughness and self.prev_unique_frag_dict != {}:
-                            if new_frag_key in self.prev_unique_frag_dict:
-                                for unique_fragment in self.prev_unique_frag_dict[new_frag_key]:
-                                    if unique_fragment.isomorphic_to(fragment):
-                                        proceed = False
-                                        break
+                        if (
+                            self.assume_previous_thoroughness
+                            and self.prev_unique_frag_dict != {}
+                            and new_frag_key in self.prev_unique_frag_dict
+                        ):
+                            for unique_fragment in self.prev_unique_frag_dict[new_frag_key]:
+                                if unique_fragment.isomorphic_to(fragment):
+                                    proceed = False
+                                    break
                         if proceed:
                             if new_frag_key not in self.all_unique_frag_dict:
                                 self.all_unique_frag_dict[new_frag_key] = [fragment]

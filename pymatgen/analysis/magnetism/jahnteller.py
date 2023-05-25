@@ -1,31 +1,22 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
-
 """
 JahnTeller distortion analysis.
 """
 
+from __future__ import annotations
 
 import os
-import sys
 import warnings
-from typing import Any, Dict, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 
 from pymatgen.analysis.bond_valence import BVAnalyzer
-from pymatgen.analysis.local_env import (
-    LocalStructOrderParams,
-    get_neighbors_of_site_with_index,
-)
+from pymatgen.analysis.local_env import LocalStructOrderParams, get_neighbors_of_site_with_index
 from pymatgen.core.periodic_table import Species, get_el_sp
-from pymatgen.core.structure import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+if TYPE_CHECKING:
+    from pymatgen.core import Structure
 
 MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -44,7 +35,6 @@ class JahnTellerAnalyzer:
         """
         Init for JahnTellerAnalyzer.
         """
-
         self.spin_configs = {
             "oct": {  # key is number of d electrons
                 0: {"high": {"e_g": 0, "t_2g": 0}, "default": "high"},
@@ -96,7 +86,7 @@ class JahnTellerAnalyzer:
         calculate_valences: bool = True,
         guesstimate_spin: bool = False,
         op_threshold: float = 0.1,
-    ) -> Tuple[Dict, Structure]:
+    ) -> tuple[dict, Structure]:
         """Obtain an analysis of a given structure and if it may be Jahn-Teller
         active or not. This is a heuristic, and may give false positives and
         false negatives (false positives are preferred).
@@ -115,9 +105,7 @@ class JahnTellerAnalyzer:
         Returns:
             analysis of structure, with key 'strength' which may be 'none', 'strong',
             'weak', or 'unknown' (Default value = 0.1) and decorated structure
-
         """
-
         structure = structure.get_primitive_structure()
 
         if calculate_valences:
@@ -136,13 +124,11 @@ class JahnTellerAnalyzer:
         non_jt_sites = []
 
         for indices in symmetrized_structure.equivalent_indices:
-
             idx = indices[0]
             site = symmetrized_structure[idx]
 
             # only interested in sites with oxidation states
             if isinstance(site.specie, Species) and site.specie.element.is_transition_metal:
-
                 # get motif around site
                 order_params = op.get_order_parameters(symmetrized_structure, idx)
 
@@ -157,12 +143,10 @@ class JahnTellerAnalyzer:
                     motif_order_parameter = None
 
                 if motif in ["oct", "tet"]:
-
                     motif = cast(Literal["oct", "tet"], motif)  # mypy needs help
 
                     # guess spin of metal ion
                     if guesstimate_spin and "magmom" in site.properties:
-
                         # estimate if high spin or low spin
                         magmom = site.properties["magmom"]
                         spin_state = self._estimate_spin_state(site.specie, motif, magmom)
@@ -172,7 +156,6 @@ class JahnTellerAnalyzer:
                     magnitude = self.get_magnitude_of_effect_from_species(site.specie, spin_state, motif)
 
                     if magnitude != "none":
-
                         ligands = get_neighbors_of_site_with_index(structure, idx, approach="min_dist", delta=0.15)
                         ligand_bond_lengths = [ligand.distance(structure[idx]) for ligand in ligands]
                         ligands_species = list({str(ligand.specie) for ligand in ligands})
@@ -220,7 +203,7 @@ class JahnTellerAnalyzer:
 
         # perform aggregation of all sites
         if jt_sites:
-            analysis = {"active": True}  # type: Dict[str, Any]
+            analysis: dict[str, Any] = {"active": True}
             # if any site could exhibit 'strong' Jahn-Teller effect
             # then mark whole structure as strong
             strong_magnitudes = [site["strength"] == "strong" for site in jt_sites]
@@ -238,7 +221,7 @@ class JahnTellerAnalyzer:
         calculate_valences: bool = True,
         guesstimate_spin: bool = False,
         op_threshold: float = 0.1,
-    ) -> Dict:
+    ) -> dict:
         """
         Convenience method, uses get_analysis_and_structure method.
 
@@ -295,7 +278,6 @@ class JahnTellerAnalyzer:
         Returns:
             boolean, True if might be Jahn-Teller active, False if not
         """
-
         active = False
 
         try:
@@ -335,7 +317,6 @@ class JahnTellerAnalyzer:
 
         Returns:
             Decorated Structure, will be in primitive setting.
-
         """
         try:
             analysis, structure = self.get_analysis_and_structure(
@@ -365,7 +346,6 @@ class JahnTellerAnalyzer:
 
         Returns: Number of d electrons.
         """
-
         # TODO: replace with more generic Hund's rule algorithm?
 
         # taken from get_crystal_field_spin
@@ -378,7 +358,7 @@ class JahnTellerAnalyzer:
 
         return nelectrons
 
-    def get_magnitude_of_effect_from_species(self, species: Union[str, Species], spin_state: str, motif: str) -> str:
+    def get_magnitude_of_effect_from_species(self, species: str | Species, spin_state: str, motif: str) -> str:
         """
         Get magnitude of Jahn-Teller effect from provided species, spin state and motif.
 
@@ -388,16 +368,13 @@ class JahnTellerAnalyzer:
           motif: "oct" or "tet"
 
         Returns: "none", "weak" or "strong
-
         """
-
         magnitude = "none"
 
         sp = get_el_sp(species)
 
         # has to be Species; we need to know the oxidation state
         if isinstance(sp, Species) and sp.element.is_transition_metal:
-
             d_electrons = self._get_number_of_d_electrons(sp)
 
             if motif in self.spin_configs:
@@ -411,7 +388,7 @@ class JahnTellerAnalyzer:
         return magnitude
 
     @staticmethod
-    def get_magnitude_of_effect_from_spin_config(motif: str, spin_config: Dict[str, float]) -> str:
+    def get_magnitude_of_effect_from_spin_config(motif: str, spin_config: dict[str, float]) -> str:
         """
         Roughly, the magnitude of Jahn-Teller distortion will be:
         * in octahedral environments, strong if e_g orbitals
@@ -443,7 +420,7 @@ class JahnTellerAnalyzer:
 
     @staticmethod
     def _estimate_spin_state(
-        species: Union[str, Species], motif: Literal["oct", "tet"], known_magmom: float
+        species: str | Species, motif: Literal["oct", "tet"], known_magmom: float
     ) -> Literal["undefined", "low", "high", "unknown"]:
         """Simple heuristic to estimate spin state. If magnetic moment
         is sufficiently close to that predicted for a given spin state,
@@ -478,9 +455,7 @@ class JahnTellerAnalyzer:
         return "unknown"
 
     @staticmethod
-    def mu_so(
-        species: Union[str, Species], motif: Literal["oct", "tet"], spin_state: Literal["high", "low"]
-    ) -> Optional[float]:
+    def mu_so(species: str | Species, motif: Literal["oct", "tet"], spin_state: Literal["high", "low"]) -> float | None:
         """Calculates the spin-only magnetic moment for a
         given species. Only supports transition metals.
 

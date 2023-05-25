@@ -1,9 +1,5 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
-
-
 """
-This module provides classes to comparsion the structures of the two
+This module provides classes to comparison the structures of the two
 molecule. As long as the two molecule have the same bond connection tables,
 the molecules are deemed to be same. The atom in the two molecule must be
 paired accordingly.
@@ -11,6 +7,8 @@ This module is supposed to perform rough comparisons with the atom order
 correspondence prerequisite, while molecule_matcher is supposed to do exact
 comparisons without the atom order correspondence prerequisite.
 """
+
+from __future__ import annotations
 
 import itertools
 
@@ -188,13 +186,13 @@ class MoleculeStructureComparator(MSONable):
         self.ignore_halogen_self_bond = True
         self.bond_13_cap = bond_13_cap
 
-    def are_equal(self, mol1, mol2):
+    def are_equal(self, mol1, mol2) -> bool:
         """
         Compare the bond table of the two molecules.
 
         Args:
             mol1: first molecule. pymatgen Molecule object.
-            mol2: second moleculs. pymatgen Molecule objec.
+            mol2: second molecules. pymatgen Molecule object.
         """
         b1 = set(self._get_bonds(mol1))
         b2 = set(self._get_bonds(mol2))
@@ -207,13 +205,12 @@ class MoleculeStructureComparator(MSONable):
             priority_bonds ():
 
         Returns:
-
         """
         all_bond_pairs = list(itertools.combinations(priority_bonds, r=2))
         all_2_bond_atoms = [set(b1 + b2) for b1, b2 in all_bond_pairs]
         all_13_bond_atoms = [a for a in all_2_bond_atoms if len(a) == 3]
         all_2_and_13_bonds = {
-            tuple(sorted(b)) for b in itertools.chain(*[itertools.combinations(p, 2) for p in all_13_bond_atoms])
+            tuple(sorted(b)) for b in itertools.chain(*(itertools.combinations(p, 2) for p in all_13_bond_atoms))
         }
         bonds_13 = all_2_and_13_bonds - {tuple(b) for b in priority_bonds}
         return tuple(sorted(bonds_13))
@@ -237,8 +234,7 @@ class MoleculeStructureComparator(MSONable):
             covalent_atoms = list(range(num_atoms))
         all_pairs = list(itertools.combinations(covalent_atoms, 2))
         pair_dists = [mol.get_distance(*p) for p in all_pairs]
-        elements = mol.composition.as_dict().keys()
-        unavailable_elements = list(set(elements) - set(self.covalent_radius.keys()))
+        unavailable_elements = list(set(mol.composition.as_dict()) - set(self.covalent_radius))
         if len(unavailable_elements) > 0:
             raise ValueError(f"The covalent radius for element {unavailable_elements} is not available")
         bond_13 = self.get_13_bonds(self.priority_bonds)
@@ -274,8 +270,8 @@ class MoleculeStructureComparator(MSONable):
         """
         return {
             "version": __version__,
-            "@module": self.__class__.__module__,
-            "@class": self.__class__.__name__,
+            "@module": type(self).__module__,
+            "@class": type(self).__name__,
             "bond_length_cap": self.bond_length_cap,
             "covalent_radius": self.covalent_radius,
             "priority_bonds": self.priority_bonds,
@@ -291,8 +287,7 @@ class MoleculeStructureComparator(MSONable):
         Returns:
             MoleculeStructureComparator
         """
-
-        return MoleculeStructureComparator(
+        return cls(
             bond_length_cap=d["bond_length_cap"],
             covalent_radius=d["covalent_radius"],
             priority_bonds=d["priority_bonds"],

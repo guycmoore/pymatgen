@@ -1,17 +1,11 @@
-#!/usr/bin/env python
+from __future__ import annotations
 
+import json
+import os
 
-__author__ = "waroquiers"
-
-from pymatgen.analysis.chemenv.connectivity.connectivity_finder import (
-    ConnectivityFinder,
-)
-from pymatgen.analysis.chemenv.connectivity.structure_connectivity import (
-    StructureConnectivity,
-)
-from pymatgen.analysis.chemenv.coordination_environments.chemenv_strategies import (
-    SimplestChemenvStrategy,
-)
+from pymatgen.analysis.chemenv.connectivity.connectivity_finder import ConnectivityFinder
+from pymatgen.analysis.chemenv.connectivity.structure_connectivity import StructureConnectivity
+from pymatgen.analysis.chemenv.coordination_environments.chemenv_strategies import SimplestChemenvStrategy
 from pymatgen.analysis.chemenv.coordination_environments.structure_environments import (
     LightStructureEnvironments,
     StructureEnvironments,
@@ -19,11 +13,11 @@ from pymatgen.analysis.chemenv.coordination_environments.structure_environments 
 from pymatgen.util.testing import PymatgenTest
 
 try:
-    import bson  # type: ignore  # Ignore bson import for mypy
+    import bson
 except ModuleNotFoundError:
-    bson = None
-import json
-import os
+    bson = None  # type: ignore
+
+__author__ = "waroquiers"
 
 
 class StructureConnectivityTest(PymatgenTest):

@@ -1,10 +1,24 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
-
 """
 Development script of the ChemEnv utility to get the explicit permutations for coordination environments identified
 with the explicit permutations algorithms (typically with coordination numbers <= 6)
 """
+
+from __future__ import annotations
+
+import itertools
+import json
+import os
+
+import numpy as np
+
+from pymatgen.analysis.chemenv.coordination_environments.coordination_geometries import (
+    AllCoordinationGeometries,
+    ExplicitPermutationsAlgorithm,
+)
+from pymatgen.analysis.chemenv.coordination_environments.coordination_geometry_finder import (
+    AbstractGeometry,
+    LocalGeometryFinder,
+)
 
 __author__ = "David Waroquiers"
 __copyright__ = "Copyright 2012, The Materials Project"
@@ -13,23 +27,12 @@ __maintainer__ = "David Waroquiers"
 __email__ = "david.waroquiers@gmail.com"
 __date__ = "Feb 20, 2016"
 
-from pymatgen.analysis.chemenv.coordination_environments.coordination_geometry_finder import LocalGeometryFinder
-from pymatgen.analysis.chemenv.coordination_environments.coordination_geometry_finder import AbstractGeometry
-from pymatgen.analysis.chemenv.coordination_environments.coordination_geometries import AllCoordinationGeometries
-from pymatgen.analysis.chemenv.coordination_environments.coordination_geometries import ExplicitPermutationsAlgorithm
-
-import numpy as np
-import itertools
-import json
-import os
-
 
 class Algo:
     pass
 
 
 if __name__ == "__main__":
-
     # Choose the geometry
     allcg = AllCoordinationGeometries()
     while True:
@@ -58,10 +61,9 @@ if __name__ == "__main__":
     lgf.perfect_geometry = AbstractGeometry.from_cg(cg=cg)
 
     points_perfect = lgf.perfect_geometry.points_wocs_ctwocc()
-    res = lgf.coordination_geometry_symmetry_measures_standard(
+    csms, perms, algos, local2perfect_maps, perfect2local_maps = lgf.coordination_geometry_symmetry_measures_standard(
         coordination_geometry=cg, algo=algo, points_perfect=points_perfect
     )
-    (csms, perms, algos, local2perfect_maps, perfect2local_maps) = res
 
     csms_with_recorded_permutation = []
     explicit_permutations = []
@@ -94,6 +96,5 @@ if __name__ == "__main__":
         newgeom_dir = "new_geometry_files"
         if not os.path.exists(newgeom_dir):
             os.makedirs(newgeom_dir)
-        f = open(f"{newgeom_dir}/{cg_symbol}.json", "w")
-        json.dump(cg.as_dict(), f)
-        f.close()
+        with open(f"{newgeom_dir}/{cg_symbol}.json", "w") as f:
+            json.dump(cg.as_dict(), f)

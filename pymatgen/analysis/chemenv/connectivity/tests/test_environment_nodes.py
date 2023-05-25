@@ -1,23 +1,16 @@
-#!/usr/bin/env python
-
-
-__author__ = "waroquiers"
+from __future__ import annotations
 
 import os
-import shutil
 
-import networkx as nx
-
-from pymatgen.analysis.chemenv.connectivity.environment_nodes import (
-    EnvironmentNode,
-    get_environment_node,
-)
+from pymatgen.analysis.chemenv.connectivity.environment_nodes import EnvironmentNode
 from pymatgen.util.testing import PymatgenTest
 
 try:
-    import bson  # type: ignore  # Ignore bson import for mypy
+    import bson
 except ModuleNotFoundError:
-    bson = None
+    bson = None  # type: ignore
+
+__author__ = "waroquiers"
 
 json_files_dir = os.path.join(
     PymatgenTest.TEST_FILES_DIR,

@@ -1,26 +1,21 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
-
 """
 This module defines classes to represent any type of spectrum, essentially any
 x y value pairs.
 """
 
-import sys
-from typing import Callable, List, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Literal
 
 import numpy as np
 from monty.json import MSONable
 from scipy import stats
-from scipy.ndimage.filters import convolve1d
+from scipy.ndimage import convolve1d
 
 from pymatgen.util.coord import get_linear_interpolated_value
-from pymatgen.util.typing import ArrayLike
 
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 
 def lorentzian(x, x_0: float = 0, sigma: float = 1.0):
@@ -50,7 +45,7 @@ class Spectrum(MSONable):
     YLABEL = "y"
 
     def __init__(self, x: ArrayLike, y: ArrayLike, *args, **kwargs):
-        r"""
+        """
         Args:
             x (ndarray): A ndarray of N values.
             y (ndarray): A ndarray of N x k values. The first dimension must be
@@ -74,7 +69,7 @@ class Spectrum(MSONable):
             return self.x
         if item == self.YLABEL.lower():
             return self.y
-        raise AttributeError("Invalid attribute name %s" % str(item))
+        raise AttributeError(f"Invalid attribute name {item!s}")
 
     def __len__(self):
         return self.ydim[0]
@@ -94,11 +89,11 @@ class Spectrum(MSONable):
         elif mode.lower() == "max":
             factor = np.max(self.y, axis=0)
         else:
-            raise ValueError("Unsupported normalization mode %s!" % mode)
+            raise ValueError(f"Unsupported normalization mode {mode}!")
 
         self.y /= factor / value
 
-    def smear(self, sigma: float = 0.0, func: Union[str, Callable] = "gaussian"):
+    def smear(self, sigma: float = 0.0, func: str | Callable = "gaussian"):
         """
         Apply Gaussian/Lorentzian smearing to spectrum y value.
 
@@ -126,7 +121,7 @@ class Spectrum(MSONable):
             self.y = np.array([convolve1d(self.y[:, k], weights) for k in range(self.ydim[1])]).T
             self.y *= total / np.sum(self.y, axis=0)  # renormalize to maintain the same integrated sum as before.
 
-    def get_interpolated_value(self, x: float) -> List[float]:
+    def get_interpolated_value(self, x: float) -> list[float]:
         """
         Returns an interpolated y value for a particular x value.
 
@@ -164,7 +159,7 @@ class Spectrum(MSONable):
 
     def __sub__(self, other):
         """
-        Substract one Spectrum object from another. Checks that x scales are
+        Subtract one Spectrum object from another. Checks that x scales are
         the same.
         Otherwise, a ValueError is thrown
 
@@ -172,7 +167,7 @@ class Spectrum(MSONable):
             other: Another Spectrum object
 
         Returns:
-            Substraction of the two Spectrum objects
+            Subtraction of the two Spectrum objects
         """
         if not all(np.equal(self.x, other.x)):
             raise ValueError("X axis values are not compatible!")
@@ -220,16 +215,10 @@ class Spectrum(MSONable):
         Returns a string containing values and labels of spectrum object for
         plotting.
         """
-        return "\n".join(
-            [
-                self.__class__.__name__,
-                f"{self.XLABEL}: {self.x}",
-                f"{self.YLABEL}: {self.y}",
-            ]
-        )
+        return f"{type(self).__name__}\n{self.XLABEL}: {self.x}\n{self.YLABEL}: {self.y}"
 
     def __repr__(self):
         """
         Returns a printable representation of the class
         """
-        return self.__str__()
+        return str(self)

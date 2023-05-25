@@ -5,6 +5,8 @@ Implementation for `pmg potcar` CLI.
 """
 
 
+from __future__ import annotations
+
 import os
 
 from pymatgen.io.vasp import Potcar
@@ -56,7 +58,7 @@ def generate_potcar(args):
             p = Potcar(args.symbols, functional=args.functional)
             p.write_file("POTCAR")
         except Exception as ex:
-            print(f"An error has occurred: {str(ex)}")
+            print(f"An error has occurred: {ex}")
 
     else:
         print("No valid options selected.")

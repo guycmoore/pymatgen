@@ -1,6 +1,3 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
-
 """
 Some reimplementation of Henkelman's Transition State Analysis utilities,
 which are originally in Perl. Additional features beyond those offered by
@@ -9,8 +6,10 @@ Henkelman's utilities will be added.
 This allows the usage and customization in Python.
 """
 
-import glob
+from __future__ import annotations
+
 import os
+from glob import glob
 
 import numpy as np
 from monty.json import MSONable, jsanitize
@@ -110,7 +109,7 @@ class NEBAnalysis(MSONable):
         prev = structures[0]
         for st in structures[1:]:
             dists = np.array([s2.distance(s1) for s1, s2 in zip(prev, st)])
-            r.append(np.sqrt(np.sum(dists ** 2)))
+            r.append(np.sqrt(np.sum(dists**2)))
             prev = st
         r = np.cumsum(r)
 
@@ -189,7 +188,7 @@ class NEBAnalysis(MSONable):
             barrier = max(data, key=lambda d: d[1])
             plt.plot([0, barrier[0]], [barrier[1], barrier[1]], "k--")
             plt.annotate(
-                "%.0f meV" % (np.max(y) - np.min(y)),
+                f"{np.max(y) - np.min(y):.0f} meV",
                 xy=(barrier[0] / 2, barrier[1] * 1.02),
                 xytext=(barrier[0] / 2, barrier[1] * 1.02),
                 horizontalalignment="center",
@@ -255,20 +254,20 @@ class NEBAnalysis(MSONable):
         terminal_dirs.append([os.path.join(root_dir, d) for d in ["initial", "final"]])
 
         for i, d in neb_dirs:
-            outcar = glob.glob(os.path.join(d, "OUTCAR*"))
-            contcar = glob.glob(os.path.join(d, "CONTCAR*"))
-            poscar = glob.glob(os.path.join(d, "POSCAR*"))
+            outcar = glob(os.path.join(d, "OUTCAR*"))
+            contcar = glob(os.path.join(d, "CONTCAR*"))
+            poscar = glob(os.path.join(d, "POSCAR*"))
             terminal = i in [0, neb_dirs[-1][0]]
             if terminal:
                 for ds in terminal_dirs:
                     od = ds[0] if i == 0 else ds[1]
-                    outcar = glob.glob(os.path.join(od, "OUTCAR*"))
+                    outcar = glob(os.path.join(od, "OUTCAR*"))
                     if outcar:
                         outcar = sorted(outcar)
                         outcars.append(Outcar(outcar[-1]))
                         break
                 else:
-                    raise ValueError("OUTCAR cannot be found for terminal point %s" % d)
+                    raise ValueError(f"OUTCAR cannot be found for terminal point {d}")
                 structures.append(Poscar.from_file(poscar[0]).structure)
             else:
                 outcars.append(Outcar(outcar[0]))
@@ -280,11 +279,11 @@ class NEBAnalysis(MSONable):
         Dict representation of NEBAnalysis.
 
         Returns:
-            JSON serializable dict representation.
+            JSON-serializable dict representation.
         """
         return {
-            "@module": self.__class__.__module__,
-            "@class": self.__class__.__name__,
+            "@module": type(self).__module__,
+            "@class": type(self).__name__,
             "r": jsanitize(self.r),
             "energies": jsanitize(self.energies),
             "forces": jsanitize(self.forces),

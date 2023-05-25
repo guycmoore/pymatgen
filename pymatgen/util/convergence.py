@@ -1,6 +1,4 @@
-# Copyright (c) Pymatgen Development Team.
 # Distributed under the terms of the MIT License.import string
-
 
 """
 function for calculating the convergence of an x, y data set
@@ -12,11 +10,13 @@ tries to fit multiple functions to the x, y data
 
 calculates which function fits best
 for tol < 0
-returns the x value for which y is converged within tol of the assymtotic value
+returns the x value for which y is converged within tol of the asymptotic value
 for tol > 0
 returns the x_value for which dy(x)/dx < tol for all x >= x_value, conv is true is such a x_value exists
-for the best fit a gnuplot line is printed plotting the data, the function and the assymthotic value
+for the best fit a gnuplot line is printed plotting the data, the function and the asymptotic value
 """
+
+from __future__ import annotations
 
 import random
 import string
@@ -24,7 +24,6 @@ import string
 import numpy as np
 
 __author__ = "Michiel van Setten"
-__copyright__ = " "
 __version__ = "0.9"
 __maintainer__ = "Michiel van Setten"
 __email__ = "mjvansetten@gmail.com"
@@ -38,7 +37,6 @@ def id_generator(size=8, chars=string.ascii_uppercase + string.digits):
         chars ():
 
     Returns:
-
     """
     return "".join(random.choice(chars) for _ in range(size))
 
@@ -104,7 +102,6 @@ def print_and_raise_error(xs, ys, name):
         name ():
 
     Returns:
-
     """
     print("Index error in", name)
     print("ys: ", ys)
@@ -123,10 +120,10 @@ def reciprocal(x, a, b, n):
     if isinstance(x, list):
         y_l = []
         for x_v in x:
-            y_l.append(a + b / x_v ** n)
+            y_l.append(a + b / x_v**n)
         y = np.array(y_l)
     else:
-        y = a + b / x ** n
+        y = a + b / x**n
     return y
 
 
@@ -154,10 +151,10 @@ def exponential(x, a, b, n):
     if isinstance(x, list):
         y_l = []
         for x_v in x:
-            y_l.append(a + b * n ** -x_v)
+            y_l.append(a + b * n**-x_v)
         y = np.array(y_l)
     else:
-        y = a + b * n ** -x
+        y = a + b * n**-x
     return y
 
 
@@ -169,7 +166,6 @@ def p0_exponential(xs, ys):
         ys ():
 
     Returns:
-
     """
     n0 = 1.005
     b0 = (n0 ** -xs[-1] - n0 ** -xs[1]) / (ys[-1] - ys[1])
@@ -201,7 +197,6 @@ def p0_single_reciprocal(xs, ys):
         ys ():
 
     Returns:
-
     """
     c = 1
     b = (1 / (xs[-1] - c) - 1 / (xs[1] - c)) / (ys[-1] - ys[1])
@@ -231,10 +226,7 @@ def p0_simple_reciprocal(xs, ys):
         ys ():
 
     Returns:
-
     """
-    # b = (ys[-1] - ys[1]) / (1/xs[-1] - 1/xs[1])
-    # a = ys[1] - b / xs[1]
     b = (ys[-1] - ys[-2]) / (1 / (xs[-1]) - 1 / (xs[-2]))
     a = ys[-2] - b / (xs[-2])
     return [a, b]
@@ -248,10 +240,10 @@ def simple_2reciprocal(x, a, b):
     if isinstance(x, list):
         y_l = []
         for x_v in x:
-            y_l.append(a + b / x_v ** c)
+            y_l.append(a + b / x_v**c)
         y = np.array(y_l)
     else:
-        y = a + b / x ** c
+        y = a + b / x**c
     return y
 
 
@@ -263,7 +255,6 @@ def p0_simple_2reciprocal(xs, ys):
         ys ():
 
     Returns:
-
     """
     c = 2
     b = (ys[-1] - ys[1]) / (1 / xs[-1] ** c - 1 / xs[1] ** c)
@@ -279,10 +270,10 @@ def simple_4reciprocal(x, a, b):
     if isinstance(x, list):
         y_l = []
         for x_v in x:
-            y_l.append(a + b / x_v ** c)
+            y_l.append(a + b / x_v**c)
         y = np.array(y_l)
     else:
-        y = a + b / x ** c
+        y = a + b / x**c
     return y
 
 
@@ -294,7 +285,6 @@ def p0_simple_4reciprocal(xs, ys):
         ys ():
 
     Returns:
-
     """
     c = 4
     b = (ys[-1] - ys[1]) / (1 / xs[-1] ** c - 1 / xs[1] ** c)
@@ -310,10 +300,10 @@ def simple_5reciprocal(x, a, b):
     if isinstance(x, list):
         y_l = []
         for x_v in x:
-            y_l.append(a + b / x_v ** c)
+            y_l.append(a + b / x_v**c)
         y = np.array(y_l)
     else:
-        y = a + b / x ** c
+        y = a + b / x**c
     return y
 
 
@@ -324,7 +314,6 @@ def p0_simple_5reciprocal(xs, ys):
         ys ():
 
     Returns:
-
     """
     c = 0.5
     b = (ys[-1] - ys[1]) / (1 / xs[-1] ** c - 1 / xs[1] ** c)
@@ -340,7 +329,6 @@ def extrapolate_simple_reciprocal(xs, ys):
         ys ():
 
     Returns:
-
     """
     b = (ys[-2] - ys[-1]) / (1 / (xs[-2]) - 1 / (xs[-1]))
     a = ys[-1] - b / (xs[-1])
@@ -357,8 +345,8 @@ def extrapolate_reciprocal(xs, ys, n, noise):
         x1 = (xs[-3] + xs[-4]) / 2
         x2 = (xs[-1] + xs[-2]) / 2
         try:
-            b = (y1 - y2) / (1 / x1 ** n - 1 / x2 ** n)
-            a = y2 - b / x2 ** n
+            b = (y1 - y2) / (1 / x1**n - 1 / x2**n)
+            a = y2 - b / x2**n
         except IndexError:
             print_and_raise_error(xs, ys, "extrapolate_reciprocal")
     else:
@@ -386,7 +374,7 @@ def measure(function, xs, ys, popt, weights):
                 raise NotImplementedError
             n += 1
         except IndexError:
-            raise RuntimeError("y does not exist for x = ", x, " this should not happen")
+            raise RuntimeError(f"y does not exist for {x = }, this should not happen")
 
     return m
 
@@ -399,7 +387,6 @@ def get_weights(xs, ys, mode=2):
         mode ():
 
     Returns:
-
     """
     ds = get_derivatives(xs, ys, fd=True)
     if mode == 1:
@@ -410,10 +397,10 @@ def get_weights(xs, ys, mode=2):
         for d in ds:
             weights.append(abs(mind / d))
     if mode == 2:
-        maxxs = max(xs) ** 2
+        x_max = max(xs) ** 2
         weights = []
         for x in xs:
-            weights.append(x ** 2 / maxxs)
+            weights.append(x**2 / x_max)
     else:
         weights = [1] * len(xs)
     return weights
@@ -483,7 +470,7 @@ def multi_reciprocal_extra(xs, ys, noise=False):
     return fit_results[best[2]]["popt"], fit_results[best[2]]["pcov"], best
 
 
-def print_plot_line(function, popt, xs, ys, name, tol=0.05, extra=""):
+def print_plot_line(function, popt, xs, ys, name, tol: float = 0.05, extra=""):
     """
     print the gnuplot command line to plot the x, y data with the fitted function using the popt parameters
     """
@@ -492,14 +479,10 @@ def print_plot_line(function, popt, xs, ys, name, tol=0.05, extra=""):
         for n in range(0, len(ys), 1):
             f.write(str(xs[n]) + " " + str(ys[n]) + "\n")
     tol = abs(tol)
-    line = "plot 'convdat.%s' pointsize 4 lt 0, " % idp
+    line = f"plot 'convdat.{idp}' pointsize 4 lt 0, "
     line += f"{popt[0]} lt 3, {popt[0] - tol} lt 4, {popt[0] + tol} lt 4, "
     if function is exponential:
-        line += "{} + {} * {} ** -x".format(
-            popt[0],
-            popt[1],
-            min(max(1.00001, popt[2]), 1.2),
-        )
+        line += f"{popt[0]} + {popt[1]} * {min(max(1.00001, popt[2]), 1.2)} ** -x"
     elif function is reciprocal:
         line += f"{popt[0]} + {popt[1]} / x**{min(max(0.5, popt[2]), 6)}"
     elif function is single_reciprocal:
@@ -517,13 +500,13 @@ def print_plot_line(function, popt, xs, ys, name, tol=0.05, extra=""):
 
     with open("plot-fits", mode="a") as f:
         f.write('set title "' + name + " - " + extra + '"\n')
-        f.write("set output '" + name + "-" + idp + ".gif'" + "\n")
+        f.write("set output '" + name + "-" + idp + ".gif'\n")
         f.write("set yrange [" + str(popt[0] - 5 * tol) + ":" + str(popt[0] + 5 * tol) + "]\n")
         f.write(line + "\n")
         f.write("pause -1 \n")
 
 
-def determine_convergence(xs, ys, name, tol=0.0001, extra="", verbose=False, mode="extra", plots=True):
+def determine_convergence(xs, ys, name, tol: float = 0.0001, extra="", verbose=False, mode="extra", plots=True):
     """
     test it and at which x_value dy(x)/dx < tol for all x >= x_value, conv is true is such a x_value exists.
     """
@@ -546,44 +529,33 @@ def determine_convergence(xs, ys, name, tol=0.0001, extra="", verbose=False, mod
                         popt, pcov, func = multi_reciprocal_extra(xs, ys)
                     else:
                         print(xs, ys)
-                        popt, pcov = None, None
+                        popt, pcov = None, None  # type: ignore[assignment]
                 elif mode == "extra_noise":
                     popt, pcov, func = multi_reciprocal_extra(xs, ys, noise=True)
                 else:
                     raise NotImplementedError("unknown mode for test conv")
                 if func[1] > abs(tol):
-                    print(
-                        "warning function ",
-                        func[0],
-                        " as the best fit but not a good fit: ",
-                        func[1],
-                    )
-                # todo print this to file via a method in helper, as dict
+                    print(f"warning function {func[0]} as the best fit but not a good fit: {func[1]}")
+                # TODO print this to file via a method in helper, as dict
                 if plots:
-                    with open(name + ".fitdat", mode="a") as f:
+                    with open(f"{name}.fitdat", mode="a") as f:
                         f.write("{")
-                        f.write('"popt": ' + str(popt) + ", ")
-                        f.write('"pcov": ' + str(pcov) + ", ")
+                        f.write(f'"popt": {popt}, ')
+                        f.write(f'"pcov": {pcov}, ')
                         f.write('"data": [')
                         for n in range(0, len(ys), 1):
-                            f.write("[" + str(xs[n]) + " " + str(ys[n]) + "]")
+                            f.write(f"[{xs[n]} {ys[n]}]")
                         f.write("]}\n")
 
                     print_plot_line(func[0], popt, xs, ys, name, tol=tol, extra=extra)
 
         except ImportError:
-            popt, pcov = None, None
+            popt, pcov = None, None  # type: ignore[assignment]
         for n in range(0, len(ds), 1):
             if verbose:
                 print(n, ys[n])
                 print(ys)
-            if tol < 0:
-                if popt[0] is not None:
-                    test = abs(popt[0] - ys[n])
-                else:
-                    test = float("inf")
-            else:
-                test = abs(ds[n])
+            test = (abs(popt[0] - ys[n]) if popt[0] is not None else float("inf")) if tol < 0 else abs(ds[n])
             if verbose:
                 print(test)
             if test < abs(tol):

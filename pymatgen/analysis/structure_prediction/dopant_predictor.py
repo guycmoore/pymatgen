@@ -2,13 +2,13 @@
 Predicting potential dopants
 """
 
+from __future__ import annotations
+
 import warnings
 
 import numpy as np
 
-from pymatgen.analysis.structure_prediction.substitution_probability import (
-    SubstitutionPredictor,
-)
+from pymatgen.analysis.structure_prediction.substitution_probability import SubstitutionPredictor
 from pymatgen.core.periodic_table import Element, Species
 
 
@@ -47,7 +47,7 @@ def get_dopants_from_substitution_probabilities(structure, num_dopants=5, thresh
     subs = [
         {
             "probability": pred["probability"],
-            "dopant_species": list(pred["substitutions"].keys())[0],
+            "dopant_species": list(pred["substitutions"])[0],
             "original_species": list(pred["substitutions"].values())[0],
         }
         for species_preds in subs
@@ -66,7 +66,7 @@ def get_dopants_from_shannon_radii(bonded_structure, num_dopants=5, match_oxi_si
         bonded_structure (StructureGraph): A pymatgen structure graph
             decorated with oxidation states. For example, generated using the
             CrystalNN.get_bonded_structure() method.
-        num_dopants (int): The nummber of suggestions to return for
+        num_dopants (int): The number of suggestions to return for
             n- and p-type dopants.
         match_oxi_sign (bool): Whether to force the dopant and original species
             to have the same sign of oxidation state. E.g. If the original site
@@ -199,8 +199,8 @@ def _int_to_roman(number):
     roman_conv = [(10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]
 
     result = []
-    for (arabic, roman) in roman_conv:
-        (factor, number) = divmod(number, arabic)
+    for arabic, roman in roman_conv:
+        factor, number = divmod(number, arabic)
         result.append(roman * factor)
         if number == 0:
             break

@@ -1,12 +1,12 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
-
-
 """
 This module contains an algorithm to solve the Linear Assignment Problem.
 It has the same functionality as linear_assignment.pyx, but is much slower
 as it is vectorized in numpy rather than cython
 """
+
+from __future__ import annotations
+
+import numpy as np
 
 __author__ = "Will Richards"
 __copyright__ = "Copyright 2011, The Materials Project"
@@ -14,8 +14,6 @@ __version__ = "1.0"
 __maintainer__ = "Will Richards"
 __email__ = "wrichards@mit.edu"
 __date__ = "Jan 28, 2013"
-
-import numpy as np
 
 
 class LinearAssignment:
@@ -48,7 +46,7 @@ class LinearAssignment:
                 rectangular
             epsilon: Tolerance for determining if solution vector is < 0
         """
-        self.orig_c = np.array(costs, dtype=np.float64)
+        self.orig_c = np.array(costs, dtype=np.float_)
         self.nx, self.ny = self.orig_c.shape
         self.n = self.ny
         self._inds = np.arange(self.n)
@@ -203,9 +201,9 @@ class LinearAssignment:
         # SCAN: set of nodes at the bottom of the tree, which we need to
         # look at
         # T0DO: unvisited nodes
-        _ready = np.zeros(self.n, dtype=np.bool)
-        _scan = np.zeros(self.n, dtype=np.bool)
-        _todo = np.zeros(self.n, dtype=np.bool) + True
+        _ready = np.zeros(self.n, dtype=np.bool_)
+        _scan = np.zeros(self.n, dtype=np.bool_)
+        _todo = np.zeros(self.n, dtype=np.bool_) + True
 
         while True:
             # populate scan with minimum reduced distances

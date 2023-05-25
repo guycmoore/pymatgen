@@ -1,5 +1,4 @@
-# Copyright (c) Pymatgen Development Team.
-# Distributed under the terms of the MIT License.
+from __future__ import annotations
 
 import json
 import os
@@ -11,7 +10,6 @@ from monty.json import MontyDecoder
 from pymatgen.analysis.xas.spectrum import XAS
 from pymatgen.util.testing import PymatgenTest
 from pymatgen.vis.plotters import SpectrumPlotter
-
 
 test_dir = os.path.join(PymatgenTest.TEST_FILES_DIR, "spectrum_test")
 
