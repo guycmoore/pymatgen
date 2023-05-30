@@ -20,15 +20,18 @@ class OptimizerPSO:
     """
 
     def __init__(self, pot_energy_surface, num_agent, positions_init, pos_dicts, vels_init, nspindim=3):
-        """_summary_
+        """
+        Potential energy surface and the swarm are initialized.
 
         Args:
             pot_energy_surface (_type_): Potential energy surface to minimize over.
             num_agent (int): Number of agents in the swarm.
             positions_init (list): Initial positions of agents on potential energy surface.
-            pos_dicts (dict): _description_
-            vels_init (list): _description_
-            nspindim (int, optional): _description_. Defaults to 3.
+            pos_dicts (list): Position descriptor dictionaries (as list), 
+                e.g. dimensionality & type ("cartesian", "spin", ...) of the individual 
+                positions that make up the global position.
+            vels_init (list): Initial velocities of agents on potential energy surface.
+            nspindim (int, optional): Dimensionality of spins. Defaults to 3.
         """
         self.pes = pot_energy_surface
         self.swarm = Swarm(num_agent, positions_init, pos_dicts, vels_init, nspindim)
@@ -37,8 +40,8 @@ class OptimizerPSO:
         """_summary_
 
         Args:
-            fit_history (_type_): _description_
-            pos_history (_type_): _description_
+            fit_history (list): List of the swarm's previous "best" fitnesses (lowest energies).
+            pos_history (list): List of the previous positions of all agents in the swarm.
             save_pos (bool, optional): _description_. Defaults to False.
             savefreq (int, optional): _description_. Defaults to 1.
             max_iter (int, optional): _description_. Defaults to 100.
@@ -56,6 +59,18 @@ class OptimizerPSO:
     def optimize_gcpso(
         self, fit_history, pos_history, grad_history, save_pos=False, savefreq=1, max_iter=100, dt=1.0, mass=1.0
     ):
+        """_summary_
+
+        Args:
+            fit_history (_type_): _description_
+            pos_history (_type_): _description_
+            grad_history (_type_): _description_
+            save_pos (bool, optional): _description_. Defaults to False.
+            savefreq (int, optional): _description_. Defaults to 1.
+            max_iter (int, optional): _description_. Defaults to 100.
+            dt (float, optional): _description_. Defaults to 1.0.
+            mass (float, optional): _description_. Defaults to 1.0.
+        """
         for n in range(max_iter):
             # ########################################
             # # serialization test
@@ -137,6 +152,11 @@ class Swarm:
                 )
 
     def update_fitnesses(self, fits_new):
+        """_summary_
+
+        Args:
+            fits_new (_type_): _description_
+        """
         for i in range(self.num_agent):
             self.agents[i].update_fitness(fits_new[i], self.fit_best, self.pos_best)
 
@@ -146,6 +166,12 @@ class Swarm:
                 self.pos_best = self.agents[i].get_position()
 
     def update_fitnesses_gcpso(self, fits_new, pos_new=None):
+        """_summary_
+
+        Args:
+            fits_new (_type_): _description_
+            pos_new (_type_, optional): _description_. Defaults to None.
+        """
         fit_best_old = [float("inf")]
         fit_best_old[0] = self.fit_best[0]
 
@@ -182,10 +208,27 @@ class Swarm:
     #         print()
 
     def compute_velocities(self, gamma=0.5, lam=1.0, dt=1.0, mass=1.0):
+        """_summary_
+
+        Args:
+            gamma (float, optional): _description_. Defaults to 0.5.
+            lam (float, optional): _description_. Defaults to 1.0.
+            dt (float, optional): _description_. Defaults to 1.0.
+            mass (float, optional): _description_. Defaults to 1.0.
+        """
         for i in range(num_agent):
             self.agents[i].compute_vel(self.pos_best, is_best=False, gamma=gamma, lam=lam, dt=dt, mass=mass)
 
     def compute_velocities_gcpso(self, grads_new, gamma=0.5, lam=1.0, dt=1.0, mass=1.0):
+        """_summary_
+
+        Args:
+            grads_new (_type_): _description_
+            gamma (float, optional): _description_. Defaults to 0.5.
+            lam (float, optional): _description_. Defaults to 1.0.
+            dt (float, optional): _description_. Defaults to 1.0.
+            mass (float, optional): _description_. Defaults to 1.0.
+        """
         for i in range(self.num_agent):
             if i == self.index_best:
                 # FIXME: "reset" position to global (& historical) best position
@@ -203,16 +246,36 @@ class Swarm:
                 self.agents[i].compute_vel(self.pos_best, is_best=False, gamma=gamma, lam=lam, dt=dt, mass=mass)
 
     def update_positions(self, dt=1.0):
+        """_summary_
+
+        Args:
+            dt (float, optional): _description_. Defaults to 1.0.
+        """
         for i in range(self.num_agent):
             self.agents[i].update_position(dt=dt)
 
     def get_positions(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         return [self.agents[i].get_position() for i in range(self.num_agent)]
 
     def get_pos_best(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         return self.pos_best
 
     def as_dict(self):
+        """_summary_
+
+        Returns:
+            dict: _description_
+        """
         swarm_dict = {}
 
         swarm_dict.update(
@@ -246,6 +309,15 @@ class Swarm:
 
     @classmethod
     def from_dict(Swarm, d):
+        """_summary_
+
+        Args:
+            Swarm (_type_): _description_
+            d (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         agents = []
         for i in range(len(d["agents"])):
             agents.append(Agent.from_dict(d["agents"][i]))
@@ -314,9 +386,21 @@ class Agent:
         self.w_social = w_social
 
     def overwrite_position(self, pos_update):
+        """_summary_
+
+        Args:
+            pos_update (_type_): _description_
+        """
         self.pos = dyn_copy(pos_update)
 
     def update_fitness(self, fit_new, fit_best_g, pos_best_g):
+        """_summary_
+
+        Args:
+            fit_new (_type_): _description_
+            fit_best_g (_type_): _description_
+            pos_best_g (_type_): _description_
+        """
         self.fit = fit_new
 
         # Update personal best
@@ -331,6 +415,15 @@ class Agent:
         #     pos_best_g = dyn_copy(self.pos_best)
 
     def compute_force(self, pos_best_g, mass=1.0):
+        """_summary_
+
+        Args:
+            pos_best_g (_type_): _description_
+            mass (float, optional): _description_. Defaults to 1.0.
+
+        Raises:
+            ValueError: _description_
+        """
         for i in range(self.nquant):
             if self.pos_dicts[i]["type"] == "cartesian":
                 # Inertial term
@@ -369,8 +462,23 @@ class Agent:
             else:
                 raise ValueError("Invalid PSO dynamic type.")
 
-    # Note: this function should be performed AFTER compute_force() - adds to previous calculated force
+
     def compute_forcebest(self, pos_best_g, grad, rho=1.0, mass=1.0, gcpso_type="grad"):
+        """_summary_
+
+        Note: this function should be performed AFTER compute_force() - adds to previous calculated force
+
+        Args:
+            pos_best_g (_type_): _description_
+            grad (_type_): _description_
+            rho (float, optional): _description_. Defaults to 1.0.
+            mass (float, optional): _description_. Defaults to 1.0.
+            gcpso_type (str, optional): _description_. Defaults to "grad".
+
+        Raises:
+            ValueError: _description_
+            ValueError: _description_
+        """
         for i in range(self.nquant):
             if self.pos_dicts[i]["type"] == "spin":
                 if gcpso_type == "grad":
@@ -389,6 +497,19 @@ class Agent:
                 raise ValueError("Invalid PSO dynamic type.")
 
     def compute_vel(self, pos_best_g, is_best=False, dt=1.0, mass=1.0, gamma=0.5, lam=1.0):
+        """_summary_
+
+        Args:
+            pos_best_g (_type_): _description_
+            is_best (bool, optional): _description_. Defaults to False.
+            dt (float, optional): _description_. Defaults to 1.0.
+            mass (float, optional): _description_. Defaults to 1.0.
+            gamma (float, optional): _description_. Defaults to 0.5.
+            lam (float, optional): _description_. Defaults to 1.0.
+
+        Raises:
+            ValueError: _description_
+        """
         for i in range(self.nquant):
             if self.pos_dicts[i]["type"] == "cartesian":
                 self.vel[i] = 1.0 * self.vel[i] + dt * self.force[i]
@@ -412,16 +533,36 @@ class Agent:
                 raise ValueError("Invalid SpinPSO dynamic type.")
 
     def update_position(self, dt=1.0):
+        """_summary_
+
+        Args:
+            dt (float, optional): _description_. Defaults to 1.0.
+        """
         for i in range(self.nquant):
             self.pos[i] = self.pos[i] + dt * self.vel[i]
 
     def get_position(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         return dyn_copy(self.pos)
 
     def get_fitness(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         return self.fit
 
     def as_dict(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         agent_dict = {}
 
         agent_dict.update({"pes": {"num_quant": self.nquant, "num_spindim": self.nspindim}})
@@ -458,6 +599,15 @@ class Agent:
 
     @classmethod
     def from_dict(Agent, d):
+        """_summary_
+
+        Args:
+            Agent (Agent): _description_
+            d (dict): _description_
+
+        Returns:
+            Agent: _description_
+        """
         return Agent(
             pos_init=dyn_toarray(d["dyn"]["position"]),
             pos_dicts=d["dyn"]["pos_dicts"],
@@ -479,7 +629,19 @@ class Agent:
 
 # consistent with: https://arxiv.org/pdf/2009.01910.pdf
 class HeisenbergModelPES:
+    """_summary_
+    """
     def __init__(self, j_ex_mats, k_anis, uvecs_anis, h_vec, num_spin, nspindim=3):
+        """_summary_
+
+        Args:
+            j_ex_mats (_type_): _description_
+            k_anis (_type_): _description_
+            uvecs_anis (_type_): _description_
+            h_vec (_type_): _description_
+            num_spin (_type_): _description_
+            nspindim (int, optional): _description_. Defaults to 3.
+        """
         self.nspindim = nspindim
 
         # Magnetism model
@@ -490,6 +652,14 @@ class HeisenbergModelPES:
         self.h_vec = h_vec
 
     def evaluate_energy(self, magmoms):
+        """_summary_
+
+        Args:
+            magmoms (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         energy = 0.0
         for i in range(self.num_spin):
             for j in range(self.num_spin):
@@ -505,6 +675,14 @@ class HeisenbergModelPES:
         return energy
 
     def compute_gradient(self, magmoms):
+        """_summary_
+
+        Args:
+            magmoms (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
         grads = [0.0 * m for m in magmoms]
 
         for p in range(self.num_spin):

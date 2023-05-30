@@ -34,6 +34,15 @@ __date__ = "March 2021"
 
 
 def get_clusters_pair(adj_matrix_full, num_site):
+    """_summary_
+
+    Args:
+        adj_matrix_full (_type_): _description_
+        num_site (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     clusters = []
     for i in range(num_site):
         for link in adj_matrix_full[i]:
@@ -50,6 +59,16 @@ def get_clusters_pair(adj_matrix_full, num_site):
 
 
 def get_intersite_uvecs(structure, clusters, normalize=True):
+    """_summary_
+
+    Args:
+        structure (_type_): _description_
+        clusters (_type_): _description_
+        normalize (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
     # unit vectors between sites
     uvecs = {}
     for cluster in clusters:
@@ -70,6 +89,17 @@ def get_intersite_uvecs(structure, clusters, normalize=True):
 
 
 def get_configurations(struct, num_config_mag, num_config_nonmag, disp_std=None):
+    """_summary_
+
+    Args:
+        struct (_type_): _description_
+        num_config_mag (_type_): _description_
+        num_config_nonmag (_type_): _description_
+        disp_std (_type_, optional): _description_. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
     if not disp_std:
         disp_std = 0.01 * (npla.det(self.struct.lattice.matrix) / len(struct)) ** (1 / 3)
 
@@ -137,6 +167,14 @@ class SpinDisplaceBondDirectionProjected:
         self.magn_struct_map = [self.struct.index(site_mag) for site_mag in self.struct_mag]
 
         def get_adj_matrix(struct_in):
+            """_summary_
+
+            Args:
+                struct_in (_type_): _description_
+
+            Returns:
+                _type_: _description_
+            """
 
             num_site_in = len(struct_in)
 
@@ -216,10 +254,17 @@ class SpinDisplaceBondDirectionProjected:
     #         return xorig
 
     def perform_fitting(self):
+        """_summary_
+        """
         self.setup_constrained_least_squares()
         self.solve_constrained_least_squares()
 
     def get_model_parameters(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         j_matrix, jp_matrix, k_para_matrix, k_perp_matrix = {}, {}, {}, {}
 
         xcomp_t = self.xcomp.T[0]
@@ -241,6 +286,8 @@ class SpinDisplaceBondDirectionProjected:
         return j_matrix, jp_matrix, k_para_matrix, k_perp_matrix
 
     def enumerate_cluster_indices(self):
+        """_summary_
+        """
         self.unique_pairs_mag = get_clusters_pair(self.adj_matrix_full_mag, self.num_spin)
         self.unique_pairs = get_clusters_pair(self.adj_matrix_full, self.num_site)
 
@@ -270,12 +317,16 @@ class SpinDisplaceBondDirectionProjected:
         # print()
 
     def setup_constrained_least_squares(self):
+        """_summary_
+        """
         self.q_c, self.r_c, self.p_c, self.rank_c = sparseqr.qr(self.a_constr.T)
 
         self.uq = coo_matrix.dot(self.config_matrix, self.q_c)
         self.q_p, self.r_p = sp.linalg.qr(self.uq[0:, self.rank_c :].todense(), pivoting=False)
 
     def solve_constrained_least_squares(self):
+        """_summary_
+        """
         # Try: Tikhonov or Lasso
         self.z0 = self.q_p.T.dot(self.datavec)
         self.z = sp.sparse.linalg.lsqr(self.r_p, self.z0)[0]
@@ -283,9 +334,13 @@ class SpinDisplaceBondDirectionProjected:
         self.xcomp = self.q_c.dot(self.y)
 
     def construct_matrices(self):
+        """_summary_
+        """
         self.get_full_constraint_matrix()
 
     def construct_data_matrix(self):
+        """_summary_
+        """
         vals, rows, cols = [], [], []
         datavec = []
         row_shift = 0
@@ -311,17 +366,27 @@ class SpinDisplaceBondDirectionProjected:
         self.datavec = datavec.copy()
 
     def construct_data_matrix_from_input(
-        self,
-        num_config_mag,
-        is_magnetic=True,
-        states_magn=None,
-        states_disp=None,
-        energies=None,
-        forces=None,
-        hmags=None,
-        j_matrix_input=None,
-        fit_anharmonic=False,
+        self, num_config_mag, is_magnetic=True,
+        states_magn=None, states_disp=None,
+        energies=None, forces=None, hmags=None,
+        j_matrix_input=None, fit_anharmonic=False,
     ):
+        """_summary_
+
+        Args:
+            num_config_mag (_type_): _description_
+            is_magnetic (bool, optional): _description_. Defaults to True.
+            states_magn (_type_, optional): _description_. Defaults to None.
+            states_disp (_type_, optional): _description_. Defaults to None.
+            energies (_type_, optional): _description_. Defaults to None.
+            forces (_type_, optional): _description_. Defaults to None.
+            hmags (_type_, optional): _description_. Defaults to None.
+            j_matrix_input (_type_, optional): _description_. Defaults to None.
+            fit_anharmonic (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
         self.num_config_mag = num_config_mag
 
         self.states_magn, self.states_disp = states_magn, states_disp
@@ -723,6 +788,8 @@ class SpinDisplaceBondDirectionProjected:
             self.datavec_nonmagnetic = datavec.copy()
 
     def get_full_constraint_matrix(self):
+        """_summary_
+        """
         self.get_symm_constraint_matrices()
 
         rows, cols, vals = [], [], []
@@ -777,6 +844,8 @@ class SpinDisplaceBondDirectionProjected:
         self.a_constr = coo_matrix((vals, (rows, cols)), shape=(row_len, col_len), dtype=float)
 
     def get_symm_constraint_matrices(self):
+        """_summary_
+        """
         bond_tol = 0.05
 
         ##
@@ -875,12 +944,14 @@ class SpinDisplaceBondDirectionProjected:
 
 
 class ClusterMatrix:
+    """_summary_
+    """
     def __init__(self, cluster_dict, degree):
         """_summary_
 
         Args:
-            cluster_dict (_type_): _description_
-            degree (_type_): _description_
+            cluster_dict (dict): _description_
+            degree (int): _description_
         """
         self.degree = degree
         self.map = cluster_dict.copy()
@@ -915,9 +986,25 @@ class ClusterMatrix:
 def get_cluster_matrices_iso(
     j_matrix, jp_matrix, k_para_matrix, k_perp_matrix, stress_app, uvecs, vvecs, num_site, num_spin
 ):
-    # Generate cluster matrices for
-    #     - isotropic Jij exchange
-    #     - bond projected model (only displacements along bonds accounted for)
+    """
+    Generate cluster matrices for
+        - isotropic Jij exchange
+        - bond projected model (only displacements along bonds accounted for)
+
+    Args:
+        j_matrix (_type_): _description_
+        jp_matrix (_type_): _description_
+        k_para_matrix (_type_): _description_
+        k_perp_matrix (_type_): _description_
+        stress_app (_type_): _description_
+        uvecs (_type_): _description_
+        vvecs (_type_): _description_
+        num_site (_type_): _description_
+        num_spin (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
 
     # FIXME: This should be consistent throughout code
     nspindim = 3
@@ -1013,6 +1100,19 @@ def get_cluster_matrices_iso(
 
 
 def get_disp_forces_bond_proj(j_matrix, jp_matrix, k_matrix, uvecs, state_magn, state_disp):
+    """_summary_
+
+    Args:
+        j_matrix (_type_): _description_
+        jp_matrix (_type_): _description_
+        k_matrix (_type_): _description_
+        uvecs (_type_): _description_
+        state_magn (_type_): _description_
+        state_disp (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     disp_force_array = np.zeros(np.array(state_disp).shape)
 
     for k in range(len(state_disp)):
@@ -1034,6 +1134,19 @@ def get_disp_forces_bond_proj(j_matrix, jp_matrix, k_matrix, uvecs, state_magn, 
 
 
 def get_energy_bond_proj(j_matrix, jp_matrix, k_matrix, uvecs, state_magn, state_disp):
+    """_summary_
+
+    Args:
+        j_matrix (_type_): _description_
+        jp_matrix (_type_): _description_
+        k_matrix (_type_): _description_
+        uvecs (_type_): _description_
+        state_magn (_type_): _description_
+        state_disp (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     e_ss, e_ssu, e_uu = 0.0, 0.0, 0.0
 
     for cluster in j_matrix.keys():
@@ -1058,6 +1171,18 @@ def get_energy_bond_proj(j_matrix, jp_matrix, k_matrix, uvecs, state_magn, state
 
 
 def get_energy_cluster(m_ss, m_ssu, m_uu, state_magn, state_disp):
+    """_summary_
+
+    Args:
+        m_ss (_type_): _description_
+        m_ssu (_type_): _description_
+        m_uu (_type_): _description_
+        state_magn (_type_): _description_
+        state_disp (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     e_ss, e_ssu, e_uu = 0.0, 0.0, 0.0
 
     for idx, coord, v in zip(m_ss.idxs, m_ss.coords, m_ss.vals):
@@ -1075,6 +1200,17 @@ def get_energy_cluster(m_ss, m_ssu, m_uu, state_magn, state_disp):
 
 
 def get_pairwise_matrix(pairwise_dict, num_site, nx_super, structure):
+    """_summary_
+
+    Args:
+        pairwise_dict (_type_): _description_
+        num_site (_type_): _description_
+        nx_super (_type_): _description_
+        structure (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     num_site_super = num_site * np.prod(nx_super)
 
     nx_lim = [nx_super[d] for d in [0, 1, 2]]
@@ -1129,6 +1265,14 @@ def get_pairwise_matrix(pairwise_dict, num_site, nx_super, structure):
 
 
 def get_mag_structures(struct_in):
+    """_summary_
+
+    Args:
+        struct_in (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     sites_mag, sites_nonmag = [], []
     for site in struct_in:
         if npla.norm(site.properties["magmom"]) > 0.0:
@@ -1143,12 +1287,33 @@ def get_mag_structures(struct_in):
 
 
 def get_serial_index(site_idx, nv, ndims, ns):
+    """_summary_
+
+    Args:
+        site_idx (_type_): _description_
+        nv (_type_): _description_
+        ndims (_type_): _description_
+        ns (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     nserial = nv[2] + ndims[2] * (nv[1] + ndims[1] * (nv[0] + ndims[0] * site_idx))
     # nserial = site_idx + ns*(nv[0] + ndims[0]*(nv[1] + ndims[1]*nv[2]))
     return nserial
 
 
 def get_super_pairwise(pw_dict, struct, nx_super):
+    """_summary_
+
+    Args:
+        pw_dict (_type_): _description_
+        struct (_type_): _description_
+        nx_super (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     num_site = len(struct)
     num_site_super = num_site * np.prod(nx_super)
 
@@ -1173,6 +1338,15 @@ def get_super_pairwise(pw_dict, struct, nx_super):
 
 
 def get_adj_matrices(struct, nx_super):
+    """_summary_
+
+    Args:
+        struct (_type_): _description_
+        nx_super (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     num_site = len(struct)
     num_site_super = num_site * np.prod(nx_super)
 
@@ -1250,7 +1424,8 @@ def get_adj_matrices(struct, nx_super):
 
 class Wannier90win(dict, MSONable):
     """
-    Heavily based on Incar class
+    A class (heavily based on pymatgen's Incar class) for generating a light-weight 
+    Wannier90 input file using orbital-like projections of valence shell.
     """
 
     def __init__(self, params: Dict[str, Any] = None, structure: Structure = None):
