@@ -7,6 +7,10 @@ from typing import Dict, Any, Tuple, Sequence, Union
 from monty.json import MontyDecoder, MSONable
 
 from pymatgen.core import Structure, Lattice, Element
+from pymatgen.io.vasp import Vasprun, BSVasprun
+from pymatgen.electronic_structure.plotter import BSPlotter, DosPlotter
+
+import matplotlib.pyplot as plt
 
 
 class Wannier90win(dict, MSONable):
@@ -92,7 +96,7 @@ class Wannier90win(dict, MSONable):
         return str_full
 
 
-def valence_projected_dos(cdos):
+def get_valence_projected_dos(cdos):
     """_summary_
 
     Args:
@@ -103,27 +107,27 @@ def valence_projected_dos(cdos):
     """
     ang_mom_dict = {"s": 0, "p": 1, "d": 2, "f": 3}
 
-    dos0 = {}
+    dos_outer = {}
 
     for site in cdos.structure:
         l_quant_num = ang_mom_dict[site.specie.block]
         proj_key = "%s-%s" % (str(site.specie), site.specie.block)
 
         dos = cdos.get_element_spd_dos(el=site.specie)
-        dos0[proj_key] = list(dos.items())[l_quant_num][-1]
+        dos_outer[proj_key] = list(dos.items())[l_quant_num][-1]
 
-    return dos0
+    return dos_outer
 
 
 def get_dis_windows(energies, rho_sum, rho_tot, min_frac=0.25, rho_tot_tol=1.0e-2):
-    """x
+    """_summary_
 
     Args:
         energies (_type_): _description_
         rho_sum (_type_): _description_
         rho_tot (_type_): _description_
         min_frac (float, optional): _description_. Defaults to 0.25.
-        rho_tot_tol (_type_, optional): _description_. Defaults to 1.0e-2.
+        rho_tot_tol (float, optional): _description_. Defaults to 1.0e-2.
 
     Returns:
         _type_: _description_
@@ -176,16 +180,14 @@ def analyze_pdos_for_disentangle(vasprun):
     """
     smearing = 0.0
 
-    plt.rcParams["figure.dpi"] = 300
-
     ylim = None
     xlim = None
-    # xlim=[-15.0,15.0]
+    # xlim = [-15.0, 15.0]
 
     cdos = vasprun.complete_dos
 
     dosplt = DosPlotter(sigma=smearing)
-    dos = valence_projected_dos(cdos)
+    dos = get_valence_projected_dos(cdos)
     dosplt.add_dos_dict(dos_dict=dos)
     dosplt.add_dos(dos=cdos, label="DOS")
 
@@ -204,9 +206,16 @@ def analyze_pdos_for_disentangle(vasprun):
             density_sum_up += np.array(dosplt_dict[k]["densities"]["1"])
             density_sum_dn += np.array(dosplt_dict[k]["densities"]["-1"])
 
-    energy_dis_min, energy_dis_max = get_dis_windows(energies, density_sum_up, density_tot_up)
+    energy_dis_min_up, energy_dis_max_up = get_dis_windows(energies, density_sum_up, density_tot_up)
+    energy_dis_min_dn, energy_dis_max_dn = get_dis_windows(energies, density_sum_dn, density_tot_dn)
 
+    energy_dis_min = max(energy_dis_min_up, energy_dis_min_dn)
+    energy_dis_max = min(energy_dis_max_up, energy_dis_max_dn)
+
+    xlim = [energy_dis_min, energy_dis_max]
     # print("energy window:", energy_dis_min, energy_dis_max)
+
+    plt.rcParams["figure.dpi"] = 300
 
     plt.figure();
     plt.plot(energies, density_sum_up, "b.-");
