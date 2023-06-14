@@ -1,6 +1,7 @@
 """
 """
 
+import os
 import numpy as np
 import numpy.linalg as npla
 import scipy as sp
@@ -17,10 +18,8 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.analysis.graphs import StructureGraph
 from pymatgen.analysis.local_env import MinimumDistanceNN
 from pymatgen.io.cif import CifWriter
-from pymatgen.util.string import str_delimited
 
 from TB2J.io_exchange import SpinIO
-
 
 __author__ = "Guy C. Moore"
 __version__ = "0.0"
@@ -28,6 +27,8 @@ __maintainer__ = "Guy C. Moore"
 __email__ = "gmoore@lbl.gov"
 __status__ = "Development"
 __date__ = "March 2021"
+
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_clusters_pair(adj_matrix_full, num_site):

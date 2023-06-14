@@ -3,6 +3,7 @@ This module contains all of the necessary functionality for the particle swarm o
 specifically SpinPSO. A lightweight Heisenberg model is included as a potential energy landscape for testing.
 """
 
+import os
 import numpy as np
 
 from pymatgen.core import Structure
@@ -13,6 +14,8 @@ __maintainer__ = "Guy C. Moore"
 __email__ = "gmoore@lbl.gov"
 __status__ = "Development"
 __date__ = "March 2021"
+
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class OptimizerPSO:
     """

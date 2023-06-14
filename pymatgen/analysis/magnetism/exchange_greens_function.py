@@ -1,6 +1,7 @@
 """
 """
 
+import os
 import numpy as np
 
 from typing import Dict, Any, Tuple, Sequence, Union
@@ -9,9 +10,18 @@ from monty.json import MontyDecoder, MSONable
 from pymatgen.core import Structure, Lattice, Element
 from pymatgen.io.vasp import Vasprun, BSVasprun
 from pymatgen.electronic_structure.plotter import BSPlotter, DosPlotter
+from pymatgen.util.string import str_delimited
 
 import matplotlib.pyplot as plt
 
+__author__ = "Guy C. Moore"
+__version__ = "0.0"
+__maintainer__ = "Guy C. Moore"
+__email__ = "gmoore@lbl.gov"
+__status__ = "Development"
+__date__ = "March 2021"
+
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class Wannier90win(dict, MSONable):
     """
@@ -57,11 +67,8 @@ class Wannier90win(dict, MSONable):
 
             for ml_shift in range(num_ml):
                 line = "f=%.6f,%.6f,%.6f: l=%i, mr=%i" % (
-                    f_coords[0],
-                    f_coords[1],
-                    f_coords[2],
-                    l_quant_num,
-                    ml_shift + 1,
+                    f_coords[0], f_coords[1], f_coords[2],
+                    l_quant_num, ml_shift + 1,
                 )
                 lines.append(line)
 
