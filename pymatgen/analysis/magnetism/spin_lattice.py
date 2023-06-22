@@ -1007,7 +1007,7 @@ def get_cluster_matrices_iso(
     nspindim = 3
     ndispdim = 3
 
-    md_ss, md_ssu, md_uu, md_sigma_u = {}, {}, {}, {}
+    md_ss, md_ssu, md_sigma_u, md_uu = {}, {}, {}, {}
 
     # spin-spin
     for cluster, v in j_matrix.items():
@@ -1090,10 +1090,10 @@ def get_cluster_matrices_iso(
     # Define cluster matrices
     m_ss = ClusterMatrix(md_ss, degree=2)
     m_ssu = ClusterMatrix(md_ssu, degree=3)
-    m_uu = ClusterMatrix(md_uu, degree=2)
     m_sigma_u = ClusterMatrix(md_sigma_u, degree=1)
+    m_uu = ClusterMatrix(md_uu, degree=2)
 
-    return m_ss, m_ssu, m_uu, m_sigma_u
+    return m_ss, m_ssu, m_sigma_u, m_uu
 
 
 def get_disp_forces_bond_proj(j_matrix, jp_matrix, k_matrix, uvecs, state_magn, state_disp):
