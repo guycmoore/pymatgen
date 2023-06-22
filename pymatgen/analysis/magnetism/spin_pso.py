@@ -3,7 +3,10 @@ This module contains all of the necessary functionality for the particle swarm o
 specifically SpinPSO. A lightweight Heisenberg model is included as a potential energy landscape for testing.
 """
 
+import os
 import numpy as np
+import numpy.linalg as npla
+import random
 
 from pymatgen.core import Structure
 
@@ -14,12 +17,14 @@ __email__ = "gmoore@lbl.gov"
 __status__ = "Development"
 __date__ = "March 2021"
 
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class OptimizerPSO:
     """
     Class for performing particle swarm optimization (both conventional cartesian PSO, as well as SpinPSO)
     """
 
-    def __init__(self, pot_energy_surface, num_agent, positions_init, pos_dicts, vels_init, nspindim=3):
+    def __init__(self, pot_energy_surface, num_agent, positions_init, pos_dicts, velocities_init, nspindim=3):
         """
         Potential energy surface and the swarm are initialized.
 
@@ -30,11 +35,11 @@ class OptimizerPSO:
             pos_dicts (list): Position descriptor dictionaries (as list), 
                 e.g. dimensionality & type ("cartesian", "spin", ...) of the individual 
                 positions that make up the global position.
-            vels_init (list): Initial velocities of agents on potential energy surface.
+            velocities_init (list): Initial velocities of agents on potential energy surface.
             nspindim (int, optional): Dimensionality of spins. Defaults to 3.
         """
         self.pes = pot_energy_surface
-        self.swarm = Swarm(num_agent, positions_init, pos_dicts, vels_init, nspindim)
+        self.swarm = Swarm(num_agent, positions_init, pos_dicts, velocities_init, nspindim)
 
     def optimize(self, fit_history, pos_history, save_pos=False, savefreq=1, max_iter=100, dt=1.0, mass=1.0):
         """_summary_
@@ -57,7 +62,7 @@ class OptimizerPSO:
                 pos_history.append(self.swarm.get_positions())
 
     def optimize_gcpso(
-        self, fit_history, pos_history, grad_history, save_pos=False, savefreq=1, max_iter=100, dt=1.0, mass=1.0
+        self, fit_history, pos_history, grad_history, save_pos=False, savefreq=1, max_iter=100, dt=1.0, mass=1.0, gcpso_type="grad",
     ):
         """_summary_
 
@@ -83,7 +88,7 @@ class OptimizerPSO:
             grads = [self.pes.compute_gradient(p) for p in pos_current]
 
             self.swarm.update_fitnesses_gcpso(fits_new)
-            self.swarm.compute_velocities_gcpso(grads, gamma=0.5, lam=1.0, dt=dt, mass=mass)
+            self.swarm.compute_velocities_gcpso(grads, gamma=0.5, lam=1.0, dt=dt, mass=mass, gcpso_type=gcpso_type)
             self.swarm.update_positions(dt)
             if save_pos and np.mod(n, savefreq) == 0:
                 fit_history.append(self.swarm.fit_best[0])
@@ -94,7 +99,7 @@ class OptimizerPSO:
 class Swarm:
     def __init__(
         self,
-        num_agent, positions_init=None, pos_dicts=None, vels_init=None, nspindim=3,
+        num_agent, positions_init=None, pos_dicts=None, velocities_init=None, nspindim=3,
         agents_in=None, fit_best=None, pos_best=None, index_best=-1,
         rho=1.0, rho_lim=16.0, rho_scale=0.5,
         num_failure=0, num_success=0, failure_lim=3, success_lim=3,
@@ -105,7 +110,7 @@ class Swarm:
             num_agent (_type_): _description_
             positions_init (_type_, optional): _description_. Defaults to None.
             pos_dicts (_type_, optional): _description_. Defaults to None.
-            vels_init (_type_, optional): _description_. Defaults to None.
+            velocities_init (_type_, optional): _description_. Defaults to None.
             nspindim (int, optional): _description_. Defaults to 3.
             agents_in (_type_, optional): _description_. Defaults to None.
             fit_best (_type_, optional): _description_. Defaults to None.
@@ -147,7 +152,7 @@ class Swarm:
             for i in range(num_agent):
                 self.agents.append(
                     Agent(
-                        pos_init=positions_init[i], pos_dicts=pos_dicts, vel_init=vels_init[i], nspindim=self.nspindim
+                        pos_init=positions_init[i], pos_dicts=pos_dicts, vel_init=velocities_init[i], nspindim=self.nspindim
                     )
                 )
 
@@ -219,7 +224,7 @@ class Swarm:
         for i in range(num_agent):
             self.agents[i].compute_vel(self.pos_best, is_best=False, gamma=gamma, lam=lam, dt=dt, mass=mass)
 
-    def compute_velocities_gcpso(self, grads_new, gamma=0.5, lam=1.0, dt=1.0, mass=1.0):
+    def compute_velocities_gcpso(self, grads_new, gamma=0.5, lam=1.0, dt=1.0, mass=1.0, gcpso_type="grad"):
         """_summary_
 
         Args:
@@ -236,9 +241,8 @@ class Swarm:
                 self.agents[i].compute_force(self.pos_best, mass=mass)
                 self.agents[i].compute_forcebest(
                     self.pos_best,
-                    gradient,
-                    rho=self.rho,
-                    mass=mass,
+                    gradient, rho=self.rho,
+                    mass=mass, gcpso_type=gcpso_type,
                 )
                 self.agents[i].compute_vel(self.pos_best, is_best=True, gamma=gamma, lam=lam, dt=dt, mass=mass)
             else:
@@ -709,3 +713,15 @@ class HeisenbergModelPES:
             grads[p][:] = energy_p[:]
 
         return grads
+
+def dyn_copy(la):
+    lb = [a.copy() for a in la]
+    return lb
+
+def dyn_toarray(la):
+    lb = [a if isinstance(a, np.ndarray) else np.array(a) for a in la]
+    return lb
+
+def dyn_tolist(la):
+    lb = [a if isinstance(a, list) else a.tolist() for a in la]
+    return lb

@@ -1,6 +1,7 @@
 """
 """
 
+import os
 import numpy as np
 import numpy.linalg as npla
 import scipy as sp
@@ -17,10 +18,8 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.analysis.graphs import StructureGraph
 from pymatgen.analysis.local_env import MinimumDistanceNN
 from pymatgen.io.cif import CifWriter
-from pymatgen.util.string import str_delimited
 
 from TB2J.io_exchange import SpinIO
-
 
 __author__ = "Guy C. Moore"
 __version__ = "0.0"
@@ -28,6 +27,8 @@ __maintainer__ = "Guy C. Moore"
 __email__ = "gmoore@lbl.gov"
 __status__ = "Development"
 __date__ = "March 2021"
+
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_clusters_pair(adj_matrix_full, num_site):
@@ -1388,6 +1389,41 @@ def get_adj_matrices(struct, nx_super):
 
     return a_adj_tri, a_adj_tri_super, a_adj_super, a_adj_super_coo
 
+def get_random_spins(num_spin, spin_magnitudes=[], nspindim=3):
+    magmoms = []
+    for i in range(num_spin):
+        m = np.zeros([nspindim])
+        # never say never...
+        while npla.norm(m) == 0.0:
+            m[:] = np.random.normal(0.0, 1.0, [nspindim])
+        m[:] /= npla.norm(m)
+        if spin_magnitudes:
+            m *= spin_magnitudes[i]
+        magmoms.append(m)
+    return magmoms
+
+def get_random_rotated_spins(num_spin, magmoms_in, theta_sigma, nspindim=3):
+    magmoms = []
+    for i in range(num_spin):
+        uvec = np.zeros([nspindim])
+        if npla.norm(magmoms_in[i]) == 0.0:
+            magmoms.append(uvec)
+        else:
+            while np.dot(uvec, magmoms_in[i]) == 0.0:
+                uvec[:] = np.random.normal(0.0, 1.0, [nspindim])
+            uvec[:] = np.cross(uvec, magmoms_in[i])
+            uvec[:] = uvec[:] / npla.norm(uvec)
+            # https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
+            k_mat = np.array([
+                [0.0,-uvec[2],uvec[1]],
+                [uvec[2],0.0,-uvec[0]],
+                [-uvec[1],uvec[0],0.0],
+            ])
+            theta = np.random.uniform(-theta_sigma, theta_sigma)
+            r_mat = np.eye(nspindim) + np.sin(theta)*k_mat + (1.0-np.cos(theta))*(k_mat @ k_mat)
+            m = np.dot(r_mat, magmoms_in[i])
+            magmoms.append(m)
+    return magmoms
 
 # def pos_to_spins(pos, nspacedim=3):
 #     nspins = len(pos) // nspacedim
