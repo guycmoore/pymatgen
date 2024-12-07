@@ -778,6 +778,17 @@ class Incar(UserDict, MSONable):
             for idx in range(len(params["MAGMOM"]) // 3):
                 val.append(params["MAGMOM"][idx * 3 : (idx + 1) * 3])
             params["MAGMOM"] = val
+        
+        # Same now for M_CONSTR...
+        # If INCAR contains vector-like M_CONSTRS given as a list
+        # of floats, convert to a list of lists
+        if (params.get("M_CONSTR") and isinstance(params["M_CONSTR"][0], int | float)) and (
+            params.get("LSORBIT") or params.get("LNONCOLLINEAR")
+        ):
+            val: list[list] = []
+            for idx in range(len(params["M_CONSTR"]) // 3):
+                val.append(params["M_CONSTR"][idx * 3 : (idx + 1) * 3])
+            params["M_CONSTR"] = val
 
         super().__init__(params)
 
@@ -877,6 +888,21 @@ class Incar(UserDict, MSONable):
                         value.append(f"{len(tuple(group))}*{_key}")
 
                 lines.append([key, " ".join(value)])
+            elif key == "M_CONSTR" and isinstance(self[key], list):
+                value = []
+
+                if isinstance(self[key][0], list | Magmom) and (self.get("LSORBIT") or self.get("LNONCOLLINEAR")):
+                    value.append(" ".join(str(i) for j in self[key] for i in j))
+                elif self.get("LSORBIT") or self.get("LNONCOLLINEAR"):
+                    for _key, group in itertools.groupby(self[key]):
+                        value.append(f"3*{len(tuple(group))}*{_key}")
+                else:
+                    # float() to ensure backwards compatibility between
+                    # float magmoms and Magmom objects
+                    for _key, group in itertools.groupby(self[key], key=float):
+                        value.append(f"{len(tuple(group))}*{_key}")
+
+                lines.append([key, " ".join(value)])
             elif isinstance(self[key], list):
                 lines.append([key, " ".join(map(str, self[key]))])
             else:
@@ -941,6 +967,7 @@ class Incar(UserDict, MSONable):
             "LDAUL",
             "LDAUJ",
             "MAGMOM",
+            "M_CONSTR",
             "DIPOL",
             "LANGEVIN_GAMMA",
             "QUAD_EFG",
